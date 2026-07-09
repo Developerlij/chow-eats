@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { database, storage } from './firebase';
-import { ref, onValue, update, set } from 'firebase/database';
+import { ref, onValue, update, set, get, child } from 'firebase/database';
 import { 
   MapPin, 
   Navigation, 
@@ -14,7 +14,10 @@ import {
   Phone, 
   Info, 
   Upload, 
-  LogOut 
+  LogOut,
+  Lock,
+  Mail,
+  ShieldAlert
 } from 'lucide-react';
 
 export default function App() {
@@ -28,11 +31,22 @@ export default function App() {
   // Tab/Navigation view state: 'deliveries', 'earnings', or 'profile'
   const [viewMode, setViewMode] = useState('deliveries');
 
+  // Database-Driven Auth Session State
+  const [session, setSession] = useState(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+
+  // Auth Forms State
+  const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+
   // Driver Profile State
   const [driverProfile, setDriverProfile] = useState(null);
   const [isRegistering, setIsRegistering] = useState(false);
   
-  // Sign Up Form State (Expanded Bio Data)
+  // Profile Onboarding Form State
   const [formName, setFormName] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [formVehicle, setFormVehicle] = useState('Motorcycle');
@@ -44,34 +58,40 @@ export default function App() {
   const [uploadProgress, setUploadProgress] = useState('');
   const [formError, setFormError] = useState('');
 
-  // Load existing profile from localStorage
+  // 1. Load active account session from localStorage on startup
   useEffect(() => {
-    const saved = localStorage.getItem('chow_rider_profile');
+    const saved = localStorage.getItem('chow_rider_session');
     if (saved) {
       try {
-        setDriverProfile(JSON.parse(saved));
+        setSession(JSON.parse(saved));
       } catch (e) {
-        console.error("Failed to parse saved profile:", e);
+        console.error("Failed to parse saved session:", e);
       }
     }
+    setSessionLoading(false);
   }, []);
 
-  // Sync profile details in real-time if changed in database
+  // 2. Load rider profile bio-data once session is active
   useEffect(() => {
-    if (!driverProfile?.id) return;
-    const profileRef = ref(database, `drivers/${driverProfile.id}`);
+    if (!session?.id) {
+      setDriverProfile(null);
+      return;
+    }
+
+    const profileRef = ref(database, `drivers/${session.id}`);
     const unsubscribe = onValue(profileRef, (snapshot) => {
       const data = snapshot.val();
-      if (data && data.status && data.status !== driverProfile.status) {
-        const updated = { ...driverProfile, status: data.status };
-        localStorage.setItem('chow_rider_profile', JSON.stringify(updated));
-        setDriverProfile(updated);
+      if (data) {
+        setDriverProfile(data);
+      } else {
+        setDriverProfile(null);
       }
     });
-    return () => unsubscribe();
-  }, [driverProfile?.id, driverProfile?.status]);
 
-  // Listen to all database orders
+    return () => unsubscribe();
+  }, [session]);
+
+  // 3. Listen to all database orders
   useEffect(() => {
     const ordersRef = ref(database, 'orders');
     const unsubscribe = onValue(ordersRef, (snapshot) => {
@@ -128,6 +148,66 @@ export default function App() {
     }
   }, [activeOrder, isSimulating, driverProfile]);
 
+  // Database-Driven Auth Handler
+  const handleAuthSubmit = async (e) => {
+    e.preventDefault();
+    if (!authEmail || !authPassword) {
+      setAuthError("Please fill in email and password.");
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthError('');
+
+    try {
+      const dbRef = ref(database);
+      const accountsSnapshot = await get(child(dbRef, 'driverAccounts'));
+      const accounts = accountsSnapshot.val() || {};
+
+      if (authMode === 'signup') {
+        // Sign Up Flow
+        const emailTaken = Object.values(accounts).some(acc => acc.email.toLowerCase() === authEmail.toLowerCase());
+        if (emailTaken) {
+          setAuthError("This email address is already registered.");
+          setAuthLoading(false);
+          return;
+        }
+
+        const newId = 'rider_' + Math.random().toString(36).substring(2, 9);
+        const newAccount = {
+          id: newId,
+          email: authEmail.toLowerCase(),
+          password: authPassword // Plain text for local database-driven compatibility
+        };
+
+        await set(ref(database, `driverAccounts/${newId}`), newAccount);
+        
+        // Log them into active session
+        localStorage.setItem('chow_rider_session', JSON.stringify(newAccount));
+        setSession(newAccount);
+      } else {
+        // Sign In Flow
+        const matchedAccount = Object.values(accounts).find(
+          acc => acc.email.toLowerCase() === authEmail.toLowerCase() && acc.password === authPassword
+        );
+
+        if (!matchedAccount) {
+          setAuthError("Invalid email or password.");
+          setAuthLoading(false);
+          return;
+        }
+
+        // Log them into active session
+        localStorage.setItem('chow_rider_session', JSON.stringify(matchedAccount));
+        setSession(matchedAccount);
+      }
+    } catch (err) {
+      setAuthError("Authentication failed: " + err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -158,7 +238,7 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
-  // Direct Rider Registration (No Auth guard bypass)
+  // Profile Onboarding Form Submit
   const handleSignUpProfile = async (e) => {
     e.preventDefault();
     if (!formName || !formPhone || !formPlate || !formEngine || !formGuarantorName || !formGuarantorPhone) {
@@ -169,9 +249,9 @@ export default function App() {
     setIsRegistering(true);
     setFormError('');
 
-    const riderId = 'rider_' + Math.random().toString(36).substring(2, 9);
     const profile = {
-      id: riderId,
+      id: session.id,
+      email: session.email,
       name: formName,
       phone: formPhone,
       vehicle: formVehicle,
@@ -185,11 +265,8 @@ export default function App() {
     };
 
     try {
-      const riderRef = ref(database, `drivers/${riderId}`);
+      const riderRef = ref(database, `drivers/${session.id}`);
       await set(riderRef, profile);
-      
-      // Save locally to browser
-      localStorage.setItem('chow_rider_profile', JSON.stringify(profile));
       setDriverProfile(profile);
     } catch (err) {
       setFormError("Failed to register profile: " + err.message);
@@ -200,14 +277,15 @@ export default function App() {
 
   const handleLogOut = () => {
     if (window.confirm("Are you sure you want to go offline and log out?")) {
-      localStorage.removeItem('chow_rider_profile');
+      localStorage.removeItem('chow_rider_session');
+      setSession(null);
       setDriverProfile(null);
       setActiveOrder(null);
       setGpsCoords(null);
       setIsSimulating(false);
       setSimProgress(0);
       setViewMode('deliveries');
-      // Reset form fields
+      // Reset input fields
       setFormName('');
       setFormPhone('');
       setFormPlate('');
@@ -216,6 +294,8 @@ export default function App() {
       setFormGuarantorPhone('');
       setFormImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80');
       setUploadProgress('');
+      setAuthEmail('');
+      setAuthPassword('');
     }
   };
 
@@ -337,16 +417,91 @@ export default function App() {
 
       {/* Main content viewport */}
       <div className="content">
-        {!driverProfile ? (
-          /* DIRECT PROFILE REGISTRATION (NO AUTH BLOCKERS) */
+        {sessionLoading ? (
+          /* LOADING SESSION */
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#888' }}>
+            <div className="geo-pulse" style={{ margin: '0 auto 16px auto' }} />
+            <p>Verifying session...</p>
+          </div>
+        ) : !session ? (
+          /* REGISTRATION / LOGIN AUTH VIEW (DATABASE-DRIVEN TO AVOID CONFIG ERROR BLOCKS) */
+          <div className="card" style={{ borderColor: 'var(--primary)' }}>
+            <div className="card-title" style={{ justifyContent: 'center', fontSize: '18px', color: 'var(--primary)' }}>
+              <Mail size={20} />
+              <span>{authMode === 'login' ? 'Rider Sign In Portal' : 'Rider Sign Up Portal'}</span>
+            </div>
+
+            <p style={{ textAlign: 'center', fontSize: '13px', color: '#AAA', marginBottom: '20px' }}>
+              Create an account or login to access your Rider profile. Immediate access is granted upon sign up!
+            </p>
+
+            {authError && (
+              <div style={{ padding: '12px', backgroundColor: '#FFEBEE', color: '#D32F2F', borderRadius: '8px', marginBottom: '16px', fontSize: '14px' }}>
+                {authError}
+              </div>
+            )}
+
+            <form onSubmit={handleAuthSubmit}>
+              <div className="form-group">
+                <label>Email Address</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-color)', padding: '4px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)' }}>
+                  <Mail size={16} color="#666" />
+                  <input 
+                    type="email" 
+                    className="form-control" 
+                    value={authEmail} 
+                    onChange={e => setAuthEmail(e.target.value)} 
+                    placeholder="e.g. rider@gmail.com" 
+                    style={{ border: 'none', paddingLeft: 0 }}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '24px' }}>
+                <label>Password</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-color)', padding: '4px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)' }}>
+                  <Lock size={16} color="#666" />
+                  <input 
+                    type="password" 
+                    className="form-control" 
+                    value={authPassword} 
+                    onChange={e => setAuthPassword(e.target.value)} 
+                    placeholder="••••••••" 
+                    style={{ border: 'none', paddingLeft: 0 }}
+                  />
+                </div>
+              </div>
+
+              <button 
+                type="submit" 
+                className="btn" 
+                style={{ width: '100%' }} 
+                disabled={authLoading}
+              >
+                {authMode === 'login' ? 'Sign In as Rider' : 'Sign Up Rider Account'}
+              </button>
+
+              <div style={{ textAlign: 'center', marginTop: '16px' }}>
+                <button 
+                  type="button" 
+                  onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setAuthError(''); }}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                >
+                  {authMode === 'login' ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : !driverProfile ? (
+          /* ONBOARDING REGISTRATION VIEW (COLLECT BIO DATA) */
           <div className="card" style={{ borderColor: 'var(--primary)' }}>
             <div className="card-title" style={{ justifyContent: 'center', fontSize: '18px', color: 'var(--primary)' }}>
               <User size={20} />
-              <span>Rider Registration Onboarding</span>
+              <span>Complete Profile Bio-Data</span>
             </div>
             
             <p style={{ textAlign: 'center', fontSize: '13px', color: '#AAA', marginBottom: '20px' }}>
-              Submit your rider application. Details will sync to the admin dashboard and you get immediate access.
+              Your details will sync to the admin dashboard and you get immediate access.
             </p>
 
             {formError && (
@@ -467,7 +622,7 @@ export default function App() {
                 disabled={isRegistering}
               >
                 <Bike size={18} style={{ marginRight: '6px' }} />
-                {isRegistering ? 'Registering...' : 'Register & Go Online'}
+                {isRegistering ? 'Submitting...' : 'Submit Profile & Go Online'}
               </button>
             </form>
           </div>
@@ -720,8 +875,8 @@ export default function App() {
 
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <div className="bio-row">
-                      <span className="bio-label">Rider Account ID</span>
-                      <span className="bio-value" style={{ fontSize: '12px', fontFamily: 'monospace' }}>{driverProfile.id}</span>
+                      <span className="bio-label">Rider Account Email</span>
+                      <span className="bio-value" style={{ fontSize: '13px' }}>{driverProfile.email}</span>
                     </div>
 
                     <div className="bio-row">
