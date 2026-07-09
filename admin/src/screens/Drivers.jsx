@@ -92,7 +92,8 @@ export default function Drivers() {
               <th>Photo</th>
               <th>Name</th>
               <th>Phone</th>
-              <th>Vehicle Details</th>
+              <th>Vehicle & Engine</th>
+              <th>Guarantor</th>
               <th>Approval Status</th>
               <th>Duty Status</th>
               <th>Live Coordinates</th>
@@ -121,7 +122,18 @@ export default function Drivers() {
                   </td>
                   <td>
                     <span style={{ fontSize: '13px', display: 'block', fontWeight: 'bold' }}>{driver.vehicle}</span>
-                    <span style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>{driver.plate}</span>
+                    <span style={{ fontSize: '11px', color: '#666', display: 'block', textTransform: 'uppercase' }}>Plate: {driver.plate}</span>
+                    <span style={{ fontSize: '10px', color: '#888', display: 'block', textTransform: 'uppercase' }}>Engine: {driver.engine || 'N/A'}</span>
+                  </td>
+                  <td>
+                    {driver.guarantorName ? (
+                      <>
+                        <span style={{ fontSize: '13px', display: 'block', fontWeight: 'bold' }}>{driver.guarantorName}</span>
+                        <span style={{ fontSize: '11px', color: '#666', display: 'block' }}>{driver.guarantorPhone}</span>
+                      </>
+                    ) : (
+                      <span style={{ color: '#aaa', fontSize: '13px' }}>None</span>
+                    )}
                   </td>
                   <td>
                     <span 
@@ -198,7 +210,7 @@ export default function Drivers() {
               ))
             ) : (
               <tr>
-                <td colSpan="10" style={{ textAlign: 'center', color: '#999', padding: '32px' }}>
+                <td colSpan="11" style={{ textAlign: 'center', color: '#999', padding: '32px' }}>
                   No delivery drivers registered in database yet. Open the Driver App to register your first rider!
                 </td>
               </tr>
