@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -15,6 +15,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { BasketContext } from '../context/BasketContext';
 import FooterNavbar from '../components/FooterNavbar';
+import { ref, onValue } from 'firebase/database';
+import { database } from '../../firebase';
 
 const groceryStore = {
   _id: 'grocery_store',
@@ -53,10 +55,52 @@ const groceryProducts = [
 ];
 
 export default function GroceriesScreen() {
-  const [activeCategory, setActiveCategory] = useState(groceryCategories[0].name);
+  const [dbCategories, setDbCategories] = useState([]);
+  const [dbProducts, setDbProducts] = useState([]);
+  const [activeCategory, setActiveCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   
   const { addDish, removeDish, forceAddDish, getDishCount } = useContext(BasketContext);
+
+  const activeCategoriesList = dbCategories.length > 0 ? dbCategories : groceryCategories;
+  const activeProductsList = dbProducts.length > 0 ? dbProducts : groceryProducts;
+
+  // Subscribe to Firebase real-time grocery database configurations
+  useEffect(() => {
+    const catsRef = ref(database, 'groceryCategories');
+    const unsubscribeCats = onValue(catsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+        setDbCategories(list);
+      } else {
+        setDbCategories([]);
+      }
+    });
+
+    const prodsRef = ref(database, 'groceryProducts');
+    const unsubscribeProds = onValue(prodsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+        setDbProducts(list);
+      } else {
+        setDbProducts([]);
+      }
+    });
+
+    return () => {
+      unsubscribeCats();
+      unsubscribeProds();
+    };
+  }, []);
+
+  // Select first category automatically when loaded
+  useEffect(() => {
+    if (!activeCategory && activeCategoriesList.length > 0) {
+      setActiveCategory(activeCategoriesList[0].name);
+    }
+  }, [activeCategoriesList, activeCategory]);
 
   const handleAddItem = (product) => {
     const result = addDish({
@@ -95,10 +139,10 @@ export default function GroceriesScreen() {
   };
 
   const getFilteredProducts = () => {
-    let filtered = groceryProducts.filter(p => p.category === activeCategory);
+    let filtered = activeProductsList.filter(p => p.category === activeCategory);
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = groceryProducts.filter(p => p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query));
+      filtered = activeProductsList.filter(p => p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query));
     }
     return filtered;
   };
@@ -138,7 +182,7 @@ export default function GroceriesScreen() {
         {/* Left Side Category Navigation */}
         <View style={styles.leftCategoryCol}>
           <ScrollView showsVerticalScrollIndicator={false}>
-            {groceryCategories.map((cat) => {
+            {activeCategoriesList.map((cat) => {
               const isActive = activeCategory === cat.name;
               return (
                 <TouchableOpacity
