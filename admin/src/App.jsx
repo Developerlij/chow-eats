@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Store, Coffee, ShoppingCart, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, Store, Coffee, ShoppingCart, ShieldAlert, Bike } from 'lucide-react';
 
 // Import Screens
 import Overview from './screens/Overview';
 import Restaurants from './screens/Restaurants';
 import MenuManager from './screens/MenuManager';
 import OrdersManager from './screens/OrdersManager';
+import Drivers from './screens/Drivers';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Overview');
@@ -14,7 +15,8 @@ export default function App() {
     { name: 'Overview', icon: LayoutDashboard, component: Overview, label: 'Dashboard' },
     { name: 'Restaurants', icon: Store, component: Restaurants, label: 'Restaurants' },
     { name: 'Menu', icon: Coffee, component: MenuManager, label: 'Menu Manager' },
-    { name: 'Orders', icon: ShoppingCart, component: OrdersManager, label: 'Live Orders' }
+    { name: 'Orders', icon: ShoppingCart, component: OrdersManager, label: 'Live Orders' },
+    { name: 'Drivers', icon: Bike, component: Drivers, label: 'Manage Drivers' }
   ];
 
   const renderActiveScreen = () => {
