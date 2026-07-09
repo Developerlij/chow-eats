@@ -22,27 +22,32 @@ export default function MenuManager() {
     const file = e.target.files[0];
     if (!file) return;
 
-    setUploadProgress('Uploading...');
+    setUploadProgress('Processing...');
     setErrorMsg('');
     
-    try {
-      const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
-      const fileRef = sRef(storage, `dishes/${Date.now()}_${file.name}`);
-      const snapshot = await uploadBytes(fileRef, file);
-      const downloadUrl = await getDownloadURL(snapshot.ref);
-      
-      setDishImage(downloadUrl);
-      setUploadProgress('Upload success!');
-    } catch (err) {
-      console.warn("Firebase Storage failed, trying base64 fallback:", err);
-      // Fallback: Read file locally as Base64 Data URL
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setDishImage(reader.result);
-        setUploadProgress('Local upload ready (Base64)!');
-      };
-      reader.readAsDataURL(file);
-    }
+    // 1. Convert to Base64 instantly so the image state is filled and form can submit immediately
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      setDishImage(reader.result);
+      setUploadProgress('Ready (local fallback)!');
+
+      // 2. Perform Firebase storage upload in background
+      try {
+        const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+        const fileRef = sRef(storage, `dishes/${Date.now()}_${file.name}`);
+        
+        setUploadProgress('Uploading to cloud...');
+        const snapshot = await uploadBytes(fileRef, file);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        
+        setDishImage(downloadUrl);
+        setUploadProgress('Cloud upload success!');
+      } catch (err) {
+        console.warn("Storage upload failed, keeping base64 fallback:", err);
+        setUploadProgress('Ready (local fallback)!');
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   useEffect(() => {
