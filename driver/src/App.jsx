@@ -233,7 +233,7 @@ export default function App() {
       guarantorName: formGuarantorName,
       guarantorPhone: formGuarantorPhone,
       image: formImage,
-      status: 'Pending Approval',
+      status: 'Approved',
       joinedAt: new Date().toISOString()
     };
 
