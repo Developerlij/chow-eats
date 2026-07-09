@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { database, storage } from '../firebase';
 import { ref, onValue, set } from 'firebase/database';
-import { Plus, Coffee, Tag, Upload } from 'lucide-react';
+import { Plus, Coffee, Tag, Upload, Trash2 } from 'lucide-react';
 
 export default function MenuManager() {
   const [restaurants, setRestaurants] = useState([]);
@@ -127,6 +127,24 @@ export default function MenuManager() {
     ? (Array.isArray(selectedRest.dishes) ? selectedRest.dishes : Object.values(selectedRest.dishes))
     : [];
 
+  const handleDeleteDish = async (dishId, dishName) => {
+    if (window.confirm(`Are you sure you want to delete "${dishName}" from this restaurant's menu?`)) {
+      setLoading(true);
+      setErrorMsg('');
+      setSuccessMsg('');
+      const updatedDishes = currentDishesList.filter(d => d._id !== dishId);
+      try {
+        const dishesRef = ref(database, `restaurants/${selectedRestId}/dishes`);
+        await set(dishesRef, updatedDishes);
+        setSuccessMsg(`Food "${dishName}" deleted successfully.`);
+      } catch (err) {
+        setErrorMsg("Failed to delete food item: " + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   return (
     <div>
       <div className="charts-row" style={{ gridTemplateColumns: '1fr 2fr' }}>
@@ -229,6 +247,7 @@ export default function MenuManager() {
                   <th>Dish Name</th>
                   <th>Description</th>
                   <th>Price</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -241,11 +260,20 @@ export default function MenuManager() {
                       <td style={{ fontWeight: 'bold' }}>{dish.name}</td>
                       <td style={{ color: '#666', fontSize: '13px', maxWidth: '300px' }} numberOfLines={1}>{dish.description}</td>
                       <td style={{ fontWeight: '800', color: '#06C167' }}>${dish.price.toFixed(2)}</td>
+                      <td>
+                        <button 
+                          onClick={() => handleDeleteDish(dish._id, dish.name)}
+                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px' }}
+                          title="Delete Food Item"
+                        >
+                          <Trash2 size={16} color="#D32F2F" />
+                        </button>
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="4" style={{ textAlign: 'center', color: '#999', padding: '32px' }}>
+                    <td colSpan="5" style={{ textAlign: 'center', color: '#999', padding: '32px' }}>
                       No food items added to this restaurant's menu yet. Fill out the form to upload your first food item!
                     </td>
                   </tr>

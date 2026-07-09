@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { database, storage } from '../firebase';
-import { ref, onValue, push, set } from 'firebase/database';
-import { Plus, Store, Navigation, Upload } from 'lucide-react';
+import { ref, onValue, push, set, remove } from 'firebase/database';
+import { Plus, Store, Navigation, Upload, Trash2 } from 'lucide-react';
 
 export default function Restaurants() {
   const [restaurants, setRestaurants] = useState([]);
@@ -57,11 +57,30 @@ export default function Restaurants() {
           ...data[key]
         }));
         setRestaurants(list);
+      } else {
+        setRestaurants([]);
       }
     });
 
     return () => unsubscribe();
   }, []);
+
+  const handleDeleteRestaurant = async (id, restaurantName) => {
+    if (window.confirm(`Are you sure you want to delete "${restaurantName}" and all its menu items?`)) {
+      setLoading(true);
+      setErrorMsg('');
+      setSuccessMsg('');
+      try {
+        const restRef = ref(database, `restaurants/${id}`);
+        await remove(restRef);
+        setSuccessMsg(`Restaurant "${restaurantName}" deleted successfully.`);
+      } catch (err) {
+        setErrorMsg("Failed to delete restaurant: " + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
 
   const handleAddRestaurant = async (e) => {
     e.preventDefault();
@@ -100,6 +119,7 @@ export default function Restaurants() {
       setDescription('');
       setAddress('');
       setImage('');
+      setUploadProgress('');
     } catch (err) {
       setErrorMsg("Failed to add restaurant: " + err.message);
     } finally {
@@ -212,6 +232,7 @@ export default function Restaurants() {
                   <th>Rating</th>
                   <th>Address</th>
                   <th>Location (Lat/Lng)</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -235,11 +256,20 @@ export default function Restaurants() {
                           {rest.lat.toFixed(4)}, {rest.lng.toFixed(4)}
                         </span>
                       </td>
+                      <td>
+                        <button 
+                          onClick={() => handleDeleteRestaurant(rest.id, rest.name)}
+                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px' }}
+                          title="Delete Restaurant"
+                        >
+                          <Trash2 size={16} color="#D32F2F" />
+                        </button>
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="6" style={{ textAlign: 'center', color: '#999', padding: '24px' }}>
+                    <td colSpan="7" style={{ textAlign: 'center', color: '#999', padding: '24px' }}>
                       No restaurants configured in database yet. The mobile app is running on local fallbacks. Add your first restaurant!
                     </td>
                   </tr>
