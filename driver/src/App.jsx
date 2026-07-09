@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { database } from './firebase';
 import { ref, onValue, update } from 'firebase/database';
-import { MapPin, Navigation, ShoppingBag, DollarSign, Bike, CheckCircle2, Play } from 'lucide-react';
+import { MapPin, Navigation, ShoppingBag, DollarSign, Bike, CheckCircle2, Play, History, Coins } from 'lucide-react';
 
 export default function App() {
   const [orders, setOrders] = useState([]);
@@ -10,6 +10,9 @@ export default function App() {
   const [gpsCoords, setGpsCoords] = useState(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [simProgress, setSimProgress] = useState(0);
+  
+  // Tab/Navigation view state
+  const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'earnings'
 
   useEffect(() => {
     // Listen to all database orders
@@ -166,6 +169,17 @@ export default function App() {
     return orders.filter(o => o.status === 'Preparing' || o.status === 'Preparing Order');
   };
 
+  // Filter completed deliveries matching this driver's name
+  const getCompletedDeliveries = () => {
+    return orders.filter(o => o.rider?.name === driverName && o.status === 'Order Delivered');
+  };
+
+  // Calculate sum total payout of completed orders
+  const getTotalEarnings = () => {
+    const completed = getCompletedDeliveries();
+    return completed.reduce((sum, o) => sum + (o.total || 0), 0);
+  };
+
   return (
     <div className="driver-app">
       {/* Header navbar */}
@@ -177,154 +191,239 @@ export default function App() {
         <div className="driver-badge">GPS ACTIVE</div>
       </header>
 
+      {/* Main tab screens content */}
       <div className="content">
-        {/* Active Trip Dashboard */}
-        {activeOrder ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div className="card" style={{ borderColor: 'var(--primary)' }}>
-              <div className="card-title" style={{ color: 'var(--primary)' }}>
-                <Navigation size={18} />
-                <span>Active Delivery Route</span>
-              </div>
+        {viewMode === 'deliveries' ? (
+          /* DELIVERIES TABS VIEW */
+          activeOrder ? (
+            /* ACTIVE TRIP DETAILS PANEL */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="card" style={{ borderColor: 'var(--primary)' }}>
+                <div className="card-title" style={{ color: 'var(--primary)' }}>
+                  <Navigation size={18} />
+                  <span>Active Delivery Route</span>
+                </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div className="address-row">
-                  <MapPin size={16} color="#FF5722" />
-                  <div>
-                    <strong style={{ display: 'block', color: '#FFF' }}>Pickup: {activeOrder.restaurant?.name}</strong>
-                    <span style={{ fontSize: '13px' }}>{activeOrder.restaurant?.address}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div className="address-row">
+                    <MapPin size={16} color="#06C167" />
+                    <div>
+                      <strong style={{ display: 'block', color: '#FFF' }}>Pickup: {activeOrder.restaurant?.name}</strong>
+                      <span style={{ fontSize: '13px' }}>{activeOrder.restaurant?.address}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ width: '2px', height: '16px', backgroundColor: '#444', marginLeft: '7px' }} />
+
+                  <div className="address-row">
+                    <MapPin size={16} color="#06C167" />
+                    <div>
+                      <strong style={{ display: 'block', color: '#FFF' }}>Dropoff: Your Home</strong>
+                      <span style={{ fontSize: '13px' }}>123 Roman Way, Food Town</span>
+                    </div>
                   </div>
                 </div>
 
-                <div style={{ width: '2px', height: '16px', backgroundColor: '#444', marginLeft: '7px' }} />
+                <div className="card-divider" />
 
-                <div className="address-row">
-                  <MapPin size={16} color="#06C167" />
-                  <div>
-                    <strong style={{ display: 'block', color: '#FFF' }}>Dropoff: Your Home</strong>
-                    <span style={{ fontSize: '13px' }}>123 Roman Way, Food Town</span>
-                  </div>
+                {/* Payment Instruction Alert */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '14px', color: '#AAA' }}>Payment Instruction:</span>
+                  {activeOrder.paymentMethod === 'Transfer' ? (
+                    <span className="badge badge-transfer">🏦 Bank Transfer Paid</span>
+                  ) : (
+                    <span className="badge badge-cash">💵 Collect Cash: ${(activeOrder.total || 0).toFixed(2)}</span>
+                  )}
                 </div>
               </div>
 
-              <div className="card-divider" />
-
-              {/* Payment Instruction Alert */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '14px', color: '#AAA' }}>Payment Instruction:</span>
-                {activeOrder.paymentMethod === 'Transfer' ? (
-                  <span className="badge badge-transfer">🏦 Bank Transfer Paid</span>
-                ) : (
-                  <span className="badge badge-cash">💵 Collect Cash: ${(activeOrder.total || 0).toFixed(2)}</span>
-                )}
+              {/* GPS streaming status */}
+              <div className="geo-box">
+                <div className="geo-pulse" />
+                <div>
+                  {gpsCoords ? (
+                    <span style={{ fontFamily: 'monospace' }}>
+                      Streaming Coords: {gpsCoords.latitude.toFixed(5)}, {gpsCoords.longitude.toFixed(5)}
+                    </span>
+                  ) : (
+                    <span>Waiting for GPS lock or Simulation...</span>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* GPS streaming status */}
-            <div className="geo-box">
-              <div className="geo-pulse" />
-              <div>
-                {gpsCoords ? (
-                  <span style={{ fontFamily: 'monospace' }}>
-                    Streaming Coords: {gpsCoords.latitude.toFixed(5)}, {gpsCoords.longitude.toFixed(5)}
-                  </span>
-                ) : (
-                  <span>Waiting for GPS lock or Simulation...</span>
-                )}
-              </div>
-            </div>
+              {/* Driving controls */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {activeOrder.status === 'Preparing Order' || activeOrder.status === 'Preparing' ? (
+                  <button className="btn" onClick={handlePickup}>
+                    <ShoppingBag size={18} />
+                    Confirm Picked Up
+                  </button>
+                ) : null}
 
-            {/* Driving controls */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {activeOrder.status === 'Preparing Order' || activeOrder.status === 'Preparing' ? (
-                <button className="btn" onClick={handlePickup}>
-                  <ShoppingBag size={18} />
-                  Confirm Picked Up
-                </button>
-              ) : null}
+                {activeOrder.status === 'Rider Picked Up Order' || activeOrder.status === 'Rider is Nearby' ? (
+                  <button className="btn btn-success" onClick={handleComplete}>
+                    <CheckCircle2 size={18} />
+                    Mark as Delivered
+                  </button>
+                ) : null}
 
-              {activeOrder.status === 'Rider Picked Up Order' || activeOrder.status === 'Rider is Nearby' ? (
-                <button className="btn btn-success" onClick={handleComplete}>
-                  <CheckCircle2 size={18} />
-                  Mark as Delivered
-                </button>
-              ) : null}
+                {!isSimulating && (activeOrder.status === 'Rider Picked Up Order' || activeOrder.status === 'Preparing Order') ? (
+                  <button className="btn btn-secondary" onClick={handleSimulateRoute}>
+                    <Play size={18} />
+                    Simulate Driving (20s)
+                  </button>
+                ) : null}
 
-              {!isSimulating && (activeOrder.status === 'Rider Picked Up Order' || activeOrder.status === 'Preparing Order') ? (
-                <button className="btn btn-secondary" onClick={handleSimulateRoute}>
-                  <Play size={18} />
-                  Simulate Driving (20s)
-                </button>
-              ) : null}
-
-              {isSimulating && (
-                <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '12px', textAlign: 'center', border: '1px solid #333' }}>
-                  <p style={{ color: '#FF5722', fontWeight: 'bold', fontSize: '14px', marginBottom: '8px' }}>Drive Simulation in Progress...</p>
-                  <div style={{ height: '6px', backgroundColor: '#333', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ width: `${(simProgress / 20) * 100}%`, height: '100%', backgroundColor: '#FF5722' }} />
+                {isSimulating && (
+                  <div style={{ backgroundColor: '#222', borderRadius: '8px', padding: '12px', textAlign: 'center', border: '1px solid #333' }}>
+                    <p style={{ color: '#06C167', fontWeight: 'bold', fontSize: '14px', marginBottom: '8px' }}>Drive Simulation in Progress...</p>
+                    <div style={{ height: '6px', backgroundColor: '#333', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{ width: `${(simProgress / 20) * 100}%`, height: '100%', backgroundColor: '#06C167' }} />
+                    </div>
                   </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* AVAILABLE JOBS LIST */
+            <div>
+              <div className="card-title" style={{ paddingLeft: '4px', marginBottom: '16px' }}>
+                <ShoppingBag size={18} color="#06C167" />
+                <span>Available Jobs List ({getUnassignedOrders().length})</span>
+              </div>
+
+              {getUnassignedOrders().length > 0 ? (
+                getUnassignedOrders().map((order) => (
+                  <div key={order.id} className="order-card">
+                    <div className="order-header">
+                      <span className="order-id">ID: {order.id.slice(0, 10)}...</span>
+                      {order.paymentMethod === 'Transfer' ? (
+                        <span className="badge badge-transfer">Transfer</span>
+                      ) : (
+                        <span className="badge badge-cash">Cash</span>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 className="restaurant-name">{order.restaurant?.name || 'Groceries Order'}</h3>
+                      <p style={{ fontSize: '13px', color: '#888', marginTop: '2px' }}>{order.items ? order.items.reduce((sum, i) => sum + i.quantity, 0) : 0} items</p>
+                    </div>
+
+                    <div className="address-row">
+                      <MapPin size={14} color="#888" />
+                      <span>Pickup: {order.restaurant?.name || 'Chow Groceries'}</span>
+                    </div>
+
+                    <div className="address-row">
+                      <MapPin size={14} color="#888" />
+                      <span>Dropoff: 123 Roman Way, Food Town</span>
+                    </div>
+
+                    <div className="card-divider" />
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '11px', color: '#888' }}>Payout</span>
+                        <span className="order-amount">${(order.total || 0).toFixed(2)}</span>
+                      </div>
+                      <button className="btn" style={{ width: 'auto', padding: '8px 16px', fontSize: '13px' }} onClick={() => handleClaimOrder(order.id)}>
+                        Accept Job
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ textAlign: 'center', padding: '60px 20px', color: '#666' }}>
+                  <Bike size={48} style={{ marginBottom: '16px', opacity: 0.3 }} />
+                  <h3>No available delivery jobs</h3>
+                  <p style={{ fontSize: '13px', color: '#555', marginTop: '6px' }}>Incoming client order placements will appear here in real-time!</p>
                 </div>
               )}
             </div>
-          </div>
+          )
         ) : (
-          /* Available Jobs List View */
-          <div>
-            <div className="card-title" style={{ paddingLeft: '4px', marginBottom: '16px' }}>
-              <ShoppingBag size={18} color="#FF5722" />
-              <span>Available Jobs List ({getUnassignedOrders().length})</span>
+          /* EARNINGS & CUSTOMER HISTORY TAB VIEW */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Total Earnings Card Summary */}
+            <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: '#1C2E24', borderColor: 'rgba(6, 193, 103, 0.3)' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '12px', backgroundColor: 'rgba(6, 193, 103, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Coins size={30} color="#06C167" />
+              </div>
+              <div>
+                <span style={{ fontSize: '13px', color: '#AAA', display: 'block', textTransform: 'uppercase', fontWeight: 'bold' }}>My Total Earnings</span>
+                <span style={{ fontSize: '28px', fontWeight: '800', color: '#FFF' }}>${getTotalEarnings().toFixed(2)}</span>
+                <span style={{ fontSize: '12px', color: '#06C167', display: 'block', marginTop: '2px', fontWeight: '500' }}>
+                  Total Deliveries Completed: {getCompletedDeliveries().length}
+                </span>
+              </div>
             </div>
 
-            {getUnassignedOrders().length > 0 ? (
-              getUnassignedOrders().map((order) => (
-                <div key={order.id} className="order-card">
-                  <div className="order-header">
-                    <span className="order-id">ID: {order.id.slice(0, 10)}...</span>
-                    {order.paymentMethod === 'Transfer' ? (
-                      <span className="badge badge-transfer">Transfer</span>
-                    ) : (
-                      <span className="badge badge-cash">Cash</span>
-                    )}
-                  </div>
-
-                  <div>
-                    <h3 className="restaurant-name">{order.restaurant?.name || 'Groceries Order'}</h3>
-                    <p style={{ fontSize: '13px', color: '#888', marginTop: '2px' }}>{order.items ? order.items.reduce((sum, i) => sum + i.quantity, 0) : 0} items</p>
-                  </div>
-
-                  <div className="address-row">
-                    <MapPin size={14} color="#888" />
-                    <span>Pickup: {order.restaurant?.name || 'Chow Groceries'}</span>
-                  </div>
-
-                  <div className="address-row">
-                    <MapPin size={14} color="#888" />
-                    <span>Dropoff: 123 Roman Way, Food Town</span>
-                  </div>
-
-                  <div className="card-divider" />
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <span style={{ display: 'block', fontSize: '11px', color: '#888' }}>Payout</span>
-                      <span className="order-amount">${(order.total || 0).toFixed(2)}</span>
-                    </div>
-                    <button className="btn" style={{ width: 'auto', padding: '8px 16px', fontSize: '13px' }} onClick={() => handleClaimOrder(order.id)}>
-                      Accept Job
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#666' }}>
-                <Bike size={48} style={{ marginBottom: '16px', opacity: 0.3 }} />
-                <h3>No available delivery jobs</h3>
-                <p style={{ fontSize: '13px', color: '#555', marginTop: '6px' }}>Incoming client order placements will appear here in real-time!</p>
+            {/* Past Customer History List */}
+            <div className="card">
+              <div className="card-title">
+                <History size={16} color="#06C167" />
+                <span>Customer Delivery History</span>
               </div>
-            )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {getCompletedDeliveries().length > 0 ? (
+                  getCompletedDeliveries().map((order) => (
+                    <div 
+                      key={order.id} 
+                      style={{ 
+                        padding: '12px', 
+                        borderRadius: '8px', 
+                        backgroundColor: 'rgba(255, 255, 255, 0.02)', 
+                        border: '1px solid #333', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '6px' 
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#888' }}>ID: {order.id.slice(0, 10)}...</span>
+                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#06C167' }}>+${(order.total || 0).toFixed(2)}</span>
+                      </div>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#DDD' }}>
+                        <span>📍 {order.restaurant?.name || 'Chow Groceries'}</span>
+                        <span>{order.paymentMethod === 'Transfer' ? '🏦 Transfer' : '💵 Cash'}</span>
+                      </div>
+                      
+                      <span style={{ fontSize: '11px', color: '#666', alignSelf: 'flex-start' }}>
+                        Delivered on: {new Date(order.createdAt).toLocaleDateString()} at {new Date(order.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '32px 10px', color: '#666' }}>
+                    <History size={32} style={{ marginBottom: '12px', opacity: 0.3 }} />
+                    <p style={{ fontSize: '13px' }}>No completed orders recorded yet.</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
+
+      {/* Bottom Tab Bar */}
+      <footer className="tab-bar">
+        <button 
+          className={`tab-item ${viewMode === 'deliveries' ? 'active' : ''}`}
+          onClick={() => setViewMode('deliveries')}
+        >
+          <Bike size={20} />
+          <span>Deliveries</span>
+        </button>
+        <button 
+          className={`tab-item ${viewMode === 'earnings' ? 'active' : ''}`}
+          onClick={() => setViewMode('earnings')}
+        >
+          <History size={20} />
+          <span>History & Earnings</span>
+        </button>
+      </footer>
     </div>
   );
 }
