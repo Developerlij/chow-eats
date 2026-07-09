@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { database } from '../firebase';
+import { database, storage } from '../firebase';
 import { ref, onValue, push, set } from 'firebase/database';
-import { Plus, Store, Navigation } from 'lucide-react';
+import { Plus, Store, Navigation, Upload } from 'lucide-react';
 
 export default function Restaurants() {
   const [restaurants, setRestaurants] = useState([]);
@@ -18,6 +18,34 @@ export default function Restaurants() {
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [uploadProgress, setUploadProgress] = useState('');
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadProgress('Uploading...');
+    setErrorMsg('');
+    
+    try {
+      const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const fileRef = sRef(storage, `restaurants/${Date.now()}_${file.name}`);
+      const snapshot = await uploadBytes(fileRef, file);
+      const downloadUrl = await getDownloadURL(snapshot.ref);
+      
+      setImage(downloadUrl);
+      setUploadProgress('Upload success!');
+    } catch (err) {
+      console.warn("Firebase Storage failed, trying base64 fallback:", err);
+      // Fallback: Read file locally as Base64 Data URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImage(reader.result);
+        setUploadProgress('Local upload ready (Base64)!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   useEffect(() => {
     const restRef = ref(database, 'restaurants');
@@ -121,9 +149,34 @@ export default function Restaurants() {
                 </select>
               </div>
 
-              <div className="form-group">
-                <label>Image URL</label>
-                <input type="text" className="form-control" value={image} onChange={e => setImage(e.target.value)} placeholder="Unsplash image link" />
+              <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Restaurant Image</span>
+                  {uploadProgress && <span style={{ fontSize: '12px', color: '#06C167', fontWeight: 'bold' }}>{uploadProgress}</span>}
+                </label>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {/* File Selector */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px dashed #444', padding: '10px', borderRadius: '6px', backgroundColor: '#fafafa' }}>
+                    <Upload size={16} color="#666" />
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleImageUpload} 
+                      style={{ fontSize: '13px', cursor: 'pointer' }}
+                    />
+                  </div>
+                  
+                  {/* Manual URL Input */}
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    value={image} 
+                    onChange={e => setImage(e.target.value)} 
+                    placeholder="Or paste an image URL here directly..." 
+                    style={{ fontSize: '13px' }}
+                  />
+                </div>
               </div>
             </div>
 
