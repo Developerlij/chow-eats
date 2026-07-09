@@ -1,13 +1,21 @@
 import React from 'react';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, UrlTile } from 'react-native-maps';
 
 export default function DeliveryMap({ style, region, restaurantCoords, userCoords, riderLocation }) {
   return (
     <MapView
       initialRegion={region}
       style={style}
-      mapType="mutedStandard"
+      mapType="none" // Turn off standard provider maps so OSM tiles load clean
     >
+      {/* 100% Free OpenStreetMap Tile Layer */}
+      <UrlTile 
+        urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        maximumZ={19}
+        flipY={false}
+      />
+
+      {/* Origin/Restaurant Marker */}
       <Marker
         coordinate={{
           latitude: restaurantCoords.latitude,
@@ -18,6 +26,7 @@ export default function DeliveryMap({ style, region, restaurantCoords, userCoord
         pinColor="#06C167"
       />
 
+      {/* Destination/User Marker */}
       <Marker
         coordinate={{
           latitude: userCoords.latitude,
@@ -28,6 +37,7 @@ export default function DeliveryMap({ style, region, restaurantCoords, userCoord
         pinColor="#1A1A1A"
       />
 
+      {/* Moving Rider Marker */}
       {riderLocation ? (
         <Marker
           coordinate={{
@@ -36,7 +46,7 @@ export default function DeliveryMap({ style, region, restaurantCoords, userCoord
           }}
           title="Your Rider"
           description="Rider is moving in real-time!"
-          pinColor="#00B0FF" // Light blue pin for rider
+          pinColor="#00B0FF"
         />
       ) : null}
     </MapView>
