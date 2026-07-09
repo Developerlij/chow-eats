@@ -7,7 +7,8 @@ import {
   ShieldAlert, 
   Bike, 
   Users as UsersIcon, 
-  Apple
+  Apple,
+  Ticket
 } from 'lucide-react';
 
 // Import Screens
@@ -18,6 +19,7 @@ import OrdersManager from './screens/OrdersManager';
 import Drivers from './screens/Drivers';
 import Users from './screens/Users';
 import GroceryManager from './screens/GroceryManager';
+import PromotionsManager from './screens/PromotionsManager';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Overview');
@@ -29,7 +31,8 @@ export default function App() {
     { name: 'Orders', icon: ShoppingCart, component: OrdersManager, label: 'Live Orders' },
     { name: 'Drivers', icon: Bike, component: Drivers, label: 'Manage Drivers' },
     { name: 'Users', icon: UsersIcon, component: Users, label: 'Customers' },
-    { name: 'Grocery', icon: Apple, component: GroceryManager, label: 'Grocery Manager' }
+    { name: 'Grocery', icon: Apple, component: GroceryManager, label: 'Grocery Manager' },
+    { name: 'Promotions', icon: Ticket, component: PromotionsManager, label: 'Promotions' }
   ];
 
   const renderActiveScreen = () => {
