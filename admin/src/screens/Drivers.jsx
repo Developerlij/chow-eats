@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { database } from '../firebase';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, set } from 'firebase/database';
 import { Bike, Navigation, Phone, Shield } from 'lucide-react';
 
 export default function Drivers() {
@@ -67,6 +67,17 @@ export default function Drivers() {
     };
   }, []);
 
+  const handleApproveDriver = async (driverId, driverName) => {
+    if (window.confirm(`Are you sure you want to approve delivery rider "${driverName}"?`)) {
+      try {
+        const statusRef = ref(database, `drivers/${driverId}/status`);
+        await set(statusRef, 'Approved');
+      } catch (err) {
+        alert("Failed to approve driver: " + err.message);
+      }
+    }
+  };
+
   return (
     <div className="card">
       <div className="card-title">
@@ -82,10 +93,12 @@ export default function Drivers() {
               <th>Name</th>
               <th>Phone</th>
               <th>Vehicle Details</th>
+              <th>Approval Status</th>
               <th>Duty Status</th>
               <th>Live Coordinates</th>
               <th>Active Restaurant</th>
               <th>Current Trip ID</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -109,6 +122,22 @@ export default function Drivers() {
                   <td>
                     <span style={{ fontSize: '13px', display: 'block', fontWeight: 'bold' }}>{driver.vehicle}</span>
                     <span style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>{driver.plate}</span>
+                  </td>
+                  <td>
+                    <span 
+                      className="status-badge" 
+                      style={{ 
+                        color: driver.status === 'Approved' ? '#06C167' : '#F57C00', 
+                        backgroundColor: driver.status === 'Approved' ? '#E8F5E9' : '#FFF3E0',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        textTransform: 'uppercase'
+                      }}
+                    >
+                      {driver.status || 'Pending Approval'}
+                    </span>
                   </td>
                   <td>
                     <span 
@@ -144,11 +173,32 @@ export default function Drivers() {
                       <span style={{ color: '#aaa', fontSize: '13px' }}>None</span>
                     )}
                   </td>
+                  <td>
+                    {driver.status === 'Pending Approval' ? (
+                      <button 
+                        onClick={() => handleApproveDriver(driver.id, driver.name)}
+                        style={{ 
+                          padding: '4px 10px', 
+                          backgroundColor: '#06C167', 
+                          color: '#FFF', 
+                          border: 'none', 
+                          borderRadius: '4px', 
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        Approve Rider
+                      </button>
+                    ) : (
+                      <span style={{ color: '#06C167', fontSize: '12px', fontWeight: 'bold' }}>Approved ✓</span>
+                    )}
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="8" style={{ textAlign: 'center', color: '#999', padding: '32px' }}>
+                <td colSpan="10" style={{ textAlign: 'center', color: '#999', padding: '32px' }}>
                   No delivery drivers registered in database yet. Open the Driver App to register your first rider!
                 </td>
               </tr>

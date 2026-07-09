@@ -52,6 +52,21 @@ export default function App() {
     }
   }, []);
 
+  // Listen to own driver profile database state updates (e.g. Admin Approval status change)
+  useEffect(() => {
+    if (!driverProfile?.id) return;
+    const profileRef = ref(database, `drivers/${driverProfile.id}`);
+    const unsubscribe = onValue(profileRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data && data.status && data.status !== driverProfile.status) {
+        const updatedProfile = { ...driverProfile, status: data.status };
+        localStorage.setItem('chow_rider_profile', JSON.stringify(updatedProfile));
+        setDriverProfile(updatedProfile);
+      }
+    });
+    return () => unsubscribe();
+  }, [driverProfile?.id, driverProfile?.status]);
+
   useEffect(() => {
     // Listen to all database orders
     const ordersRef = ref(database, 'orders');
@@ -161,7 +176,7 @@ export default function App() {
       vehicle: formVehicle,
       plate: formPlate,
       image: formImage,
-      status: 'Approved',
+      status: 'Pending Approval',
       joinedAt: new Date().toISOString()
     };
 
@@ -314,7 +329,7 @@ export default function App() {
           <Bike size={24} />
           <span>Chow Rider</span>
         </div>
-        <div className="driver-badge">{driverProfile ? 'ONLINE' : 'OFFLINE'}</div>
+        <div className="driver-badge">{driverProfile && driverProfile.status === 'Approved' ? 'ONLINE' : 'OFFLINE'}</div>
       </header>
 
       {/* Main tab screens content */}
@@ -416,6 +431,44 @@ export default function App() {
                 {isRegistering ? 'Registering...' : 'Register & Go Online'}
               </button>
             </form>
+          </div>
+        ) : driverProfile.status === 'Pending Approval' ? (
+          /* AWAITING ADMIN APPROVAL SCREEN */
+          <div className="card" style={{ borderColor: '#F57C00', textAlign: 'center', padding: '32px 20px' }}>
+            <div className="profile-header" style={{ padding: '10px 0' }}>
+              <div className="profile-avatar-circle" style={{ width: '90px', height: '90px', borderColor: '#F57C00' }}>
+                <img src={driverProfile.image} alt={driverProfile.name} className="profile-avatar-img" />
+              </div>
+              <h2 className="profile-name" style={{ margin: '8px 0 2px 0' }}>{driverProfile.name}</h2>
+              <span className="profile-status" style={{ backgroundColor: 'rgba(245, 124, 0, 0.15)', color: '#F57C00', borderColor: 'rgba(245, 124, 0, 0.3)' }}>
+                Awaiting Approval
+              </span>
+            </div>
+            
+            <div className="card-divider" />
+
+            <h3 style={{ color: '#FFF', fontSize: '16px', fontWeight: 'bold', margin: '16px 0 8px 0' }}>
+              Verification Pending
+            </h3>
+            <p style={{ fontSize: '13px', color: '#AAA', lineHeight: '20px', marginBottom: '24px' }}>
+              Thank you for signing up! Your rider registration details have been submitted to the Admin team for review. 
+              Once your account is approved, this screen will automatically refresh to grant you access to deliveries.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px', color: '#888', backgroundColor: 'rgba(255, 255, 255, 0.02)', padding: '12px', borderRadius: '8px', border: '1px solid #333', textAlign: 'left', marginBottom: '24px' }}>
+              <div><strong>Registered Phone:</strong> {driverProfile.phone}</div>
+              <div><strong>Vehicle Type:</strong> {driverProfile.vehicle}</div>
+              <div><strong>License Plate:</strong> {driverProfile.plate.toUpperCase()}</div>
+            </div>
+
+            <button 
+              className="btn btn-secondary" 
+              style={{ width: '100%', borderColor: '#D32F2F', color: '#D32F2F', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              onClick={handleLogOut}
+            >
+              <LogOut size={16} />
+              Cancel Application & Log Out
+            </button>
           </div>
         ) : (
           /* AUTHENTICATED TABS SYSTEM */
@@ -708,8 +761,8 @@ export default function App() {
         )}
       </div>
 
-      {/* Bottom Tab Bar (Visible only when registered/logged in) */}
-      {driverProfile && (
+      {/* Bottom Tab Bar (Visible only when registered, logged in, and approved) */}
+      {driverProfile && driverProfile.status === 'Approved' && (
         <footer className="tab-bar">
           <button 
             className={`tab-item ${viewMode === 'deliveries' ? 'active' : ''}`}
