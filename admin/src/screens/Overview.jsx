@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { database } from '../firebase';
 import { ref, onValue } from 'firebase/database';
-import { TrendingUp, Users, ShoppingBag, Store, Navigation, MapPin, Bike } from 'lucide-react';
+import { TrendingUp, Users, ShoppingBag, Store, Navigation, MapPin, UserCheck } from 'lucide-react';
 
 export default function Overview() {
   const [metrics, setMetrics] = useState({
@@ -12,7 +12,9 @@ export default function Overview() {
   });
 
   const [recentOrders, setRecentOrders] = useState([]);
+  const [allOrders, setAllOrders] = useState([]);
   const [liveDrivers, setLiveDrivers] = useState([]);
+  const [restaurants, setRestaurants] = useState([]);
 
   useEffect(() => {
     // 1. Fetch Orders & Profit
@@ -25,6 +27,7 @@ export default function Overview() {
           ...data[key]
         }));
         
+        setAllOrders(orderList);
         orderList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         setRecentOrders(orderList.slice(0, 5));
 
@@ -37,15 +40,19 @@ export default function Overview() {
       }
     });
 
-    // 2. Fetch Restaurants Count
+    // 2. Fetch Restaurants
     const restRef = ref(database, 'restaurants');
     const unsubscribeRest = onValue(restRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const count = Object.keys(data).length;
+        const list = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+        setRestaurants(list);
         setMetrics(prev => ({
           ...prev,
-          restaurantsCount: count
+          restaurantsCount: list.length
         }));
       }
     });
@@ -82,25 +89,34 @@ export default function Overview() {
 
   const maxVal = Math.max(...revenueData.map(d => d.value), 10);
 
-  // Helper to map coordinates (latitude/longitude) to SVG canvas X/Y coordinates
-  // Center is San Francisco-ish: lat 37.7749, lng -122.4194
-  const mapCoordinates = (lat, lng) => {
-    if (!lat || !lng) return { x: 150, y: 100 };
-    
-    // Scale mapping for visual canvas representation (300x200 area)
+  // Helper to map coordinates to SVG canvas X/Y (300x200 area)
+  // Center: lat 37.7749, lng -122.4194
+  const mapCoordinates = (lat, lng, indexOffset = 0) => {
     const latCenter = 37.7749;
     const lngCenter = -122.4194;
     const latRange = 0.05;
     const lngRange = 0.05;
 
-    const x = 150 + ((lng - lngCenter) / lngRange) * 120;
-    const y = 100 - ((lat - latCenter) / latRange) * 80;
+    // Use stable fallback coordinates if missing
+    let actualLat = parseFloat(lat) || (37.7749 + (indexOffset * 0.008) - 0.01);
+    let actualLng = parseFloat(lng) || (-122.4194 + (indexOffset * 0.008) - 0.01);
 
-    // Boundary constraints
+    const x = 150 + ((actualLng - lngCenter) / lngRange) * 120;
+    const y = 100 - ((actualLat - latCenter) / latRange) * 80;
+
     return {
       x: Math.max(15, Math.min(285, x)),
       y: Math.max(15, Math.min(185, y))
     };
+  };
+
+  // Get active uncompleted orders
+  const getActiveOrders = () => {
+    return allOrders.filter(
+      o => o.status && 
+      o.status !== 'Order Delivered' && 
+      o.status !== 'Refunded'
+    );
   };
 
   return (
@@ -178,7 +194,6 @@ export default function Overview() {
           </div>
 
           <div style={{ flex: 1, backgroundColor: '#1E1E1E', borderRadius: '8px', border: '1px solid #333', padding: '8px', position: 'relative', minHeight: '220px', overflow: 'hidden' }}>
-            {/* SVG Grid representation of the city area */}
             <svg width="100%" height="100%" viewBox="0 0 300 200" style={{ backgroundColor: '#1E1E1E' }}>
               {/* Grid Lines */}
               <defs>
@@ -188,54 +203,113 @@ export default function Overview() {
               </defs>
               <rect width="100%" height="100%" fill="url(#grid)" />
               
-              {/* Simulated Roads/Streets */}
-              <line x1="10" y1="50" x2="290" y2="50" stroke="#333" strokeWidth="4" strokeLinecap="round" />
-              <line x1="50" y1="10" x2="50" y2="190" stroke="#333" strokeWidth="4" strokeLinecap="round" />
-              <line x1="150" y1="10" x2="150" y2="190" stroke="#333" strokeWidth="4" strokeLinecap="round" />
-              <line x1="10" y1="150" x2="290" y2="150" stroke="#333" strokeWidth="4" strokeLinecap="round" />
+              {/* Simulated Roads */}
+              <line x1="10" y1="50" x2="290" y2="50" stroke="#2A2A2A" strokeWidth="3" strokeLinecap="round" />
+              <line x1="50" y1="10" x2="50" y2="190" stroke="#2A2A2A" strokeWidth="3" strokeLinecap="round" />
+              <line x1="150" y1="10" x2="150" y2="190" stroke="#2A2A2A" strokeWidth="3" strokeLinecap="round" />
+              <line x1="10" y1="150" x2="290" y2="150" stroke="#2A2A2A" strokeWidth="3" strokeLinecap="round" />
 
-              {/* Main Restaurant Hub Marker */}
-              <g transform="translate(150, 100)">
-                <circle r="8" fill="rgba(6, 193, 103, 0.2)" />
-                <circle r="4" fill="#06C167" />
-                <text y="-10" textAnchor="middle" fill="#06C167" fontSize="8" fontWeight="bold">Central Hub</text>
-              </g>
+              {/* DRAW TRIP PATHS (Connect active Restaurant -> Rider -> Customer) */}
+              {getActiveOrders().map((order, idx) => {
+                const restLat = order.restaurant?.lat || 37.7749;
+                const restLng = order.restaurant?.lng || -122.4194;
+                const custLat = order.dropoffLat || (restLat - 0.015);
+                const custLng = order.dropoffLng || (restLng + 0.015);
 
-              {/* Active Drivers Live Coordinate Pins */}
-              {liveDrivers.filter(d => d.lat && d.lng).map((driver) => {
-                const pos = mapCoordinates(driver.lat, driver.lng);
+                const restPos = mapCoordinates(restLat, restLng, idx);
+                const custPos = mapCoordinates(custLat, custLng, idx + 1);
+
+                // Find active driver assigned to this order
+                const assignedRider = liveDrivers.find(d => d.name === order.rider?.name);
+                
+                if (assignedRider && assignedRider.lat && assignedRider.lng) {
+                  const riderPos = mapCoordinates(assignedRider.lat, assignedRider.lng);
+                  return (
+                    <g key={`path-${order.id}`}>
+                      {/* Restaurant to Rider (Dotted line) */}
+                      <line x1={restPos.x} y1={restPos.y} x2={riderPos.x} y2={riderPos.y} stroke="#06C167" strokeWidth="1.5" strokeDasharray="3,3" opacity="0.7" />
+                      {/* Rider to Customer (Solid blue delivery line) */}
+                      <line x1={riderPos.x} y1={riderPos.y} x2={custPos.x} y2={custPos.y} stroke="#0288D1" strokeWidth="1.5" opacity="0.8" />
+                    </g>
+                  );
+                } else {
+                  // Direct path if rider hasn't accepted/positioned yet
+                  return (
+                    <line key={`path-${order.id}`} x1={restPos.x} y1={restPos.y} x2={custPos.x} y2={custPos.y} stroke="#888" strokeWidth="1" strokeDasharray="2,2" opacity="0.5" />
+                  );
+                }
+              })}
+
+              {/* 1. DRAW ALL REGISTERED RESTAURANTS (Green Pins) */}
+              {restaurants.map((rest, idx) => {
+                const pos = mapCoordinates(rest.lat, rest.lng, idx);
+                return (
+                  <g key={`rest-${rest.id}`} transform={`translate(${pos.x}, ${pos.y})`}>
+                    <circle r="5" fill="#06C167" stroke="#FFF" strokeWidth="1" />
+                    <text y="-8" textAnchor="middle" fill="#06C167" fontSize="7" fontWeight="bold" style={{ textShadow: '0 1px 2px #000' }}>
+                      {rest.name.slice(0, 10)}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* 2. DRAW ACTIVE CUSTOMERS / USER DROPOFFS (Red Pins) */}
+              {getActiveOrders().map((order, idx) => {
+                const restLat = order.restaurant?.lat || 37.7749;
+                const restLng = order.restaurant?.lng || -122.4194;
+                const custLat = order.dropoffLat || (restLat - 0.015);
+                const custLng = order.dropoffLng || (restLng + 0.015);
+                const pos = mapCoordinates(custLat, custLng, idx + 1);
+
+                return (
+                  <g key={`cust-${order.id}`} transform={`translate(${pos.x}, ${pos.y})`}>
+                    <circle r="5" fill="#D32F2F" stroke="#FFF" strokeWidth="1" />
+                    <circle r="2" fill="#FFF" />
+                    <text y="-8" textAnchor="middle" fill="#FFCDD2" fontSize="6">
+                      Cust: {order.userEmail ? order.userEmail.split('@')[0] : 'Guest'}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* 3. DRAW LIVE ACTIVE FLEET DRIVERS (Orange/Blue Pins) */}
+              {liveDrivers.filter(d => d.lat && d.lng).map((driver, idx) => {
+                const pos = mapCoordinates(driver.lat, driver.lng, idx);
                 const isTrip = driver.tripStatus === 'On Trip';
                 return (
-                  <g key={driver.id} transform={`translate(${pos.x}, ${pos.y})`}>
-                    {/* Pulsing beacon if moving */}
+                  <g key={`rider-${driver.id}`} transform={`translate(${pos.x}, ${pos.y})`}>
                     {isTrip && (
-                      <circle r="12" fill="rgba(2, 136, 209, 0.15)">
-                        <animate attributeName="r" values="6;16;6" dur="2s" repeatCount="indefinite" />
+                      <circle r="12" fill="rgba(2, 136, 209, 0.2)">
+                        <animate attributeName="r" values="6;14;6" dur="1.8s" repeatCount="indefinite" />
                       </circle>
                     )}
-                    <circle r="6" fill={isTrip ? '#0288D1' : '#F57C00'} border="1px solid #FFF" />
-                    <circle r="3" fill="#FFF" />
-                    <text y="-8" textAnchor="middle" fill="#FFF" fontSize="7" style={{ backgroundColor: '#000', padding: '1px' }}>
-                      {driver.name.split(' ')[0]}
+                    <circle r="6" fill={isTrip ? '#0288D1' : '#F57C00'} stroke="#FFF" strokeWidth="1" />
+                    <circle r="2" fill="#FFF" />
+                    <text y="12" textAnchor="middle" fill="#FFF" fontSize="6.5" fontWeight="bold">
+                      Rider: {driver.name.split(' ')[0]}
                     </text>
                   </g>
                 );
               })}
             </svg>
 
-            {/* Quick Map Legend */}
-            <div style={{ position: 'absolute', bottom: '8px', left: '8px', backgroundColor: 'rgba(0,0,0,0.8)', padding: '6px 10px', borderRadius: '4px', display: 'flex', gap: '12px', fontSize: '10px', border: '1px solid #444' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#0288D1' }} />
-                <span style={{ color: '#AAA' }}>On Trip</span>
+            {/* Map Legend */}
+            <div style={{ position: 'absolute', bottom: '8px', left: '8px', backgroundColor: 'rgba(0,0,0,0.85)', padding: '6px 8px', borderRadius: '4px', display: 'flex', gap: '10px', fontSize: '9px', border: '1px solid #444' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#0288D1' }} />
+                <span style={{ color: '#AAA' }}>Rider (Trip)</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#F57C00' }} />
-                <span style={{ color: '#AAA' }}>Idle</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#F57C00' }} />
+                <span style={{ color: '#AAA' }}>Rider (Idle)</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#06C167' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#06C167' }} />
                 <span style={{ color: '#AAA' }}>Restaurant</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#D32F2F' }} />
+                <span style={{ color: '#AAA' }}>User Dropoff</span>
               </div>
             </div>
           </div>
