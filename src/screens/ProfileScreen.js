@@ -36,7 +36,7 @@ export default function ProfileScreen({ navigation }) {
 
         {/* Menu Options Group */}
         <View style={styles.optionsCard}>
-          <TouchableOpacity style={styles.optionRow}>
+          <TouchableOpacity style={styles.optionRow} onPress={() => navigation.navigate('PastOrders')}>
             <View style={styles.optionIconContainer}>
               <Ionicons name="receipt-outline" size={20} color="#06C167" />
             </View>
@@ -44,7 +44,7 @@ export default function ProfileScreen({ navigation }) {
             <Ionicons name="chevron-forward" size={16} color="#CCCCCC" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.optionRow}>
+          <TouchableOpacity style={styles.optionRow} onPress={() => navigation.navigate('PaymentMethods')}>
             <View style={styles.optionIconContainer}>
               <Ionicons name="card-outline" size={20} color="#06C167" />
             </View>
@@ -52,7 +52,7 @@ export default function ProfileScreen({ navigation }) {
             <Ionicons name="chevron-forward" size={16} color="#CCCCCC" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.optionRow}>
+          <TouchableOpacity style={styles.optionRow} onPress={() => navigation.navigate('SavedAddresses')}>
             <View style={styles.optionIconContainer}>
               <Ionicons name="pin-outline" size={20} color="#06C167" />
             </View>
