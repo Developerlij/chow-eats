@@ -14,6 +14,7 @@ import PreparingOrderScreen from './src/screens/PreparingOrderScreen';
 import DeliveryScreen from './src/screens/DeliveryScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import GroceriesScreen from './src/screens/GroceriesScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -52,6 +53,7 @@ function NavigationWrapper() {
             <Stack.Screen name="Delivery" component={DeliveryScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
             <Stack.Screen name="Groceries" component={GroceriesScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
           </>
         )}
       </Stack.Navigator>

@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../context/AuthContext';
 import FooterNavbar from '../components/FooterNavbar';
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }) {
   const { user, logout, isMock } = useContext(AuthContext);
 
   return (
@@ -60,7 +60,7 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={16} color="#CCCCCC" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.optionRow}>
+          <TouchableOpacity style={styles.optionRow} onPress={() => navigation.navigate('Notifications')}>
             <View style={styles.optionIconContainer}>
               <Ionicons name="notifications-outline" size={20} color="#06C167" />
             </View>
