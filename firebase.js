@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
-import { initializeAuth, getReactNativePersistence } from "firebase/auth";
+import { initializeAuth, getReactNativePersistence, getAuth } from "firebase/auth";
+import { Platform } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
@@ -17,11 +18,17 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const database = getDatabase(app);
 
-// Initialize Firebase Auth with AsyncStorage persistence for caching login sessions
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage)
-});
+// Conditionally initialize Auth to prevent "getReactNativePersistence is not a function" errors on Web target
+let firebaseAuth;
+if (Platform.OS === 'web') {
+  firebaseAuth = getAuth(app); // Web browsers handle localstorage persistence automatically
+} else {
+  firebaseAuth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage) // Mobile native devices cache credentials via AsyncStorage
+  });
+}
 
+export const auth = firebaseAuth;
 export const isMockFirebase = false;
 
 export default app;
