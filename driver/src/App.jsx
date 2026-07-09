@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { database, storage, auth } from './firebase';
+import { database, storage } from './firebase';
 import { ref, onValue, update, set } from 'firebase/database';
-import { 
-  onAuthStateChanged, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut 
-} from 'firebase/auth';
 import { 
   MapPin, 
   Navigation, 
@@ -20,15 +14,11 @@ import {
   Phone, 
   Info, 
   Upload, 
-  LogOut,
-  Shield,
-  Lock,
-  Mail,
-  UserPlus
+  LogOut 
 } from 'lucide-react';
 
 export default function App() {
-  // Realtime lists & Simulation state
+  // Realtime orders & simulation state
   const [orders, setOrders] = useState([]);
   const [activeOrder, setActiveOrder] = useState(null);
   const [gpsCoords, setGpsCoords] = useState(null);
@@ -38,17 +28,8 @@ export default function App() {
   // Tab/Navigation view state: 'deliveries', 'earnings', or 'profile'
   const [viewMode, setViewMode] = useState('deliveries');
 
-  // Firebase Auth State
-  const [authUser, setAuthUser] = useState(null);
-  const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState('');
-
   // Driver Profile State
   const [driverProfile, setDriverProfile] = useState(null);
-  const [profileLoading, setProfileLoading] = useState(true);
   const [isRegistering, setIsRegistering] = useState(false);
   
   // Sign Up Form State (Expanded Bio Data)
@@ -63,38 +44,34 @@ export default function App() {
   const [uploadProgress, setUploadProgress] = useState('');
   const [formError, setFormError] = useState('');
 
-  // 1. Listen to Firebase Auth state change
+  // Load existing profile from localStorage
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setAuthUser(user);
-      if (!user) {
-        setDriverProfile(null);
-        setProfileLoading(false);
+    const saved = localStorage.getItem('chow_rider_profile');
+    if (saved) {
+      try {
+        setDriverProfile(JSON.parse(saved));
+      } catch (e) {
+        console.error("Failed to parse saved profile:", e);
       }
-    });
-    return () => unsubscribe();
+    }
   }, []);
 
-  // 2. Load driver profile from RTDB when user is authenticated
+  // Sync profile details in real-time if changed in database
   useEffect(() => {
-    if (!authUser) return;
-
-    setProfileLoading(true);
-    const profileRef = ref(database, `drivers/${authUser.uid}`);
+    if (!driverProfile?.id) return;
+    const profileRef = ref(database, `drivers/${driverProfile.id}`);
     const unsubscribe = onValue(profileRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) {
-        setDriverProfile(data);
-      } else {
-        setDriverProfile(null);
+      if (data && data.status && data.status !== driverProfile.status) {
+        const updated = { ...driverProfile, status: data.status };
+        localStorage.setItem('chow_rider_profile', JSON.stringify(updated));
+        setDriverProfile(updated);
       }
-      setProfileLoading(false);
     });
-
     return () => unsubscribe();
-  }, [authUser]);
+  }, [driverProfile?.id, driverProfile?.status]);
 
-  // 3. Listen to all database orders
+  // Listen to all database orders
   useEffect(() => {
     const ordersRef = ref(database, 'orders');
     const unsubscribe = onValue(ordersRef, (snapshot) => {
@@ -151,36 +128,6 @@ export default function App() {
     }
   }, [activeOrder, isSimulating, driverProfile]);
 
-  // Firebase Auth Login
-  const handleAuthSubmit = async (e) => {
-    e.preventDefault();
-    if (!authEmail || !authPassword) {
-      setAuthError("Please fill in email and password.");
-      return;
-    }
-
-    setAuthLoading(true);
-    setAuthError('');
-
-    try {
-      if (authMode === 'login') {
-        await signInWithEmailAndPassword(auth, authEmail, authPassword);
-      } else {
-        await createUserWithEmailAndPassword(auth, authEmail, authPassword);
-      }
-    } catch (err) {
-      let friendly = err.message;
-      if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-        friendly = "Invalid email or password.";
-      } else if (err.code === 'auth/email-already-in-use') {
-        friendly = "This email is already in use.";
-      }
-      setAuthError(friendly);
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -211,7 +158,7 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
-  // Profile Onboarding Registration with Engine/Guarantor details
+  // Direct Rider Registration (No Auth guard bypass)
   const handleSignUpProfile = async (e) => {
     e.preventDefault();
     if (!formName || !formPhone || !formPlate || !formEngine || !formGuarantorName || !formGuarantorPhone) {
@@ -222,9 +169,9 @@ export default function App() {
     setIsRegistering(true);
     setFormError('');
 
+    const riderId = 'rider_' + Math.random().toString(36).substring(2, 9);
     const profile = {
-      id: authUser.uid,
-      email: authUser.email,
+      id: riderId,
       name: formName,
       phone: formPhone,
       vehicle: formVehicle,
@@ -233,13 +180,16 @@ export default function App() {
       guarantorName: formGuarantorName,
       guarantorPhone: formGuarantorPhone,
       image: formImage,
-      status: 'Approved',
+      status: 'Approved', // Grant immediate access!
       joinedAt: new Date().toISOString()
     };
 
     try {
-      const riderRef = ref(database, `drivers/${authUser.uid}`);
+      const riderRef = ref(database, `drivers/${riderId}`);
       await set(riderRef, profile);
+      
+      // Save locally to browser
+      localStorage.setItem('chow_rider_profile', JSON.stringify(profile));
       setDriverProfile(profile);
     } catch (err) {
       setFormError("Failed to register profile: " + err.message);
@@ -248,29 +198,24 @@ export default function App() {
     }
   };
 
-  const handleLogOut = async () => {
+  const handleLogOut = () => {
     if (window.confirm("Are you sure you want to go offline and log out?")) {
-      try {
-        await signOut(auth);
-        setActiveOrder(null);
-        setGpsCoords(null);
-        setIsSimulating(false);
-        setSimProgress(0);
-        setViewMode('deliveries');
-        // Reset form inputs
-        setFormName('');
-        setFormPhone('');
-        setFormPlate('');
-        setFormEngine('');
-        setFormGuarantorName('');
-        setFormGuarantorPhone('');
-        setFormImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80');
-        setUploadProgress('');
-        setAuthEmail('');
-        setAuthPassword('');
-      } catch (err) {
-        console.error("Sign out failed:", err);
-      }
+      localStorage.removeItem('chow_rider_profile');
+      setDriverProfile(null);
+      setActiveOrder(null);
+      setGpsCoords(null);
+      setIsSimulating(false);
+      setSimProgress(0);
+      setViewMode('deliveries');
+      // Reset form fields
+      setFormName('');
+      setFormPhone('');
+      setFormPlate('');
+      setFormEngine('');
+      setFormGuarantorName('');
+      setFormGuarantorPhone('');
+      setFormImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80');
+      setUploadProgress('');
     }
   };
 
@@ -392,91 +337,16 @@ export default function App() {
 
       {/* Main content viewport */}
       <div className="content">
-        {profileLoading ? (
-          /* LOADING STATE */
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#888' }}>
-            <div className="geo-pulse" style={{ margin: '0 auto 16px auto' }} />
-            <p>Loading profile details...</p>
-          </div>
-        ) : !authUser ? (
-          /* UNIFIED SIGN IN VIEW */
-          <div className="card" style={{ borderColor: 'var(--primary)' }}>
-            <div className="card-title" style={{ justifyContent: 'center', fontSize: '18px', color: 'var(--primary)' }}>
-              <Shield size={20} />
-              <span>{authMode === 'login' ? 'Rider Sign In Portal' : 'Register Rider Account'}</span>
-            </div>
-
-            <p style={{ textAlign: 'center', fontSize: '13px', color: '#AAA', marginBottom: '20px' }}>
-              Sign in with your email and password. Same login details work across all Chow Apps.
-            </p>
-
-            {authError && (
-              <div style={{ padding: '12px', backgroundColor: '#FFEBEE', color: '#D32F2F', borderRadius: '8px', marginBottom: '16px', fontSize: '14px' }}>
-                {authError}
-              </div>
-            )}
-
-            <form onSubmit={handleAuthSubmit}>
-              <div className="form-group">
-                <label>Email Address</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-color)', padding: '4px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)' }}>
-                  <Mail size={16} color="#666" />
-                  <input 
-                    type="email" 
-                    className="form-control" 
-                    value={authEmail} 
-                    onChange={e => setAuthEmail(e.target.value)} 
-                    placeholder="e.g. rider@chow.com" 
-                    style={{ border: 'none', paddingLeft: 0 }}
-                  />
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '24px' }}>
-                <label>Password</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-color)', padding: '4px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)' }}>
-                  <Lock size={16} color="#666" />
-                  <input 
-                    type="password" 
-                    className="form-control" 
-                    value={authPassword} 
-                    onChange={e => setAuthPassword(e.target.value)} 
-                    placeholder="••••••••" 
-                    style={{ border: 'none', paddingLeft: 0 }}
-                  />
-                </div>
-              </div>
-
-              <button 
-                type="submit" 
-                className="btn" 
-                style={{ width: '100%' }} 
-                disabled={authLoading}
-              >
-                {authMode === 'login' ? 'Sign In as Rider' : 'Create Rider Account'}
-              </button>
-
-              <div style={{ textAlign: 'center', marginTop: '16px' }}>
-                <button 
-                  type="button" 
-                  onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setAuthError(''); }}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
-                >
-                  {authMode === 'login' ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
-                </button>
-              </div>
-            </form>
-          </div>
-        ) : !driverProfile ? (
-          /* ONBOARDING REGISTRATION VIEW (COLLECT BIO DATA) */
+        {!driverProfile ? (
+          /* DIRECT PROFILE REGISTRATION (NO AUTH BLOCKERS) */
           <div className="card" style={{ borderColor: 'var(--primary)' }}>
             <div className="card-title" style={{ justifyContent: 'center', fontSize: '18px', color: 'var(--primary)' }}>
               <User size={20} />
-              <span>Complete Profile Bio-Data</span>
+              <span>Rider Registration Onboarding</span>
             </div>
             
             <p style={{ textAlign: 'center', fontSize: '13px', color: '#AAA', marginBottom: '20px' }}>
-              Submit your rider application. The Admin will review and verify your engine and guarantor references.
+              Submit your rider application. Details will sync to the admin dashboard and you get immediate access.
             </p>
 
             {formError && (
@@ -597,49 +467,9 @@ export default function App() {
                 disabled={isRegistering}
               >
                 <Bike size={18} style={{ marginRight: '6px' }} />
-                {isRegistering ? 'Submitting...' : 'Submit Bio & Await Verification'}
+                {isRegistering ? 'Registering...' : 'Register & Go Online'}
               </button>
             </form>
-          </div>
-        ) : driverProfile.status === 'Pending Approval' ? (
-          /* AWAITING ADMIN APPROVAL SCREEN */
-          <div className="card" style={{ borderColor: '#F57C00', textAlign: 'center', padding: '32px 20px' }}>
-            <div className="profile-header" style={{ padding: '10px 0' }}>
-              <div className="profile-avatar-circle" style={{ width: '90px', height: '90px', borderColor: '#F57C00' }}>
-                <img src={driverProfile.image} alt={driverProfile.name} className="profile-avatar-img" />
-              </div>
-              <h2 className="profile-name" style={{ margin: '8px 0 2px 0' }}>{driverProfile.name}</h2>
-              <span className="profile-status" style={{ backgroundColor: 'rgba(245, 124, 0, 0.15)', color: '#F57C00', borderColor: 'rgba(245, 124, 0, 0.3)' }}>
-                Awaiting Approval
-              </span>
-            </div>
-            
-            <div className="card-divider" />
-
-            <h3 style={{ color: '#FFF', fontSize: '16px', fontWeight: 'bold', margin: '16px 0 8px 0' }}>
-              Verification Pending
-            </h3>
-            <p style={{ fontSize: '13px', color: '#AAA', lineHeight: '20px', marginBottom: '24px' }}>
-              Thank you for signing up! Your rider registration details have been submitted to the Admin team for review. 
-              Once your account is approved, this screen will automatically refresh to grant you access to deliveries.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px', color: '#888', backgroundColor: 'rgba(255, 255, 255, 0.02)', padding: '12px', borderRadius: '8px', border: '1px solid #333', textAlign: 'left', marginBottom: '24px' }}>
-              <div><strong>Registered Phone:</strong> {driverProfile.phone}</div>
-              <div><strong>Vehicle Type:</strong> {driverProfile.vehicle}</div>
-              <div><strong>License Plate:</strong> {driverProfile.plate.toUpperCase()}</div>
-              <div><strong>Engine Number:</strong> {driverProfile.engine ? driverProfile.engine.toUpperCase() : '—'}</div>
-              <div><strong>Guarantor:</strong> {driverProfile.guarantorName} ({driverProfile.guarantorPhone})</div>
-            </div>
-
-            <button 
-              className="btn btn-secondary" 
-              style={{ width: '100%', borderColor: '#D32F2F', color: '#D32F2F', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-              onClick={handleLogOut}
-            >
-              <LogOut size={16} />
-              Cancel Application & Log Out
-            </button>
           </div>
         ) : (
           /* AUTHENTICATED TABS SYSTEM */
@@ -876,7 +706,7 @@ export default function App() {
 
             {viewMode === 'profile' && (
               /* MY PROFILE TAB VIEW (BIOGRAPHY DATA) */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', fontFamily: 'sans-serif', flexDirection: 'column', gap: '16px' }}>
                 <div className="card">
                   <div className="profile-header">
                     <div className="profile-avatar-circle">
@@ -890,8 +720,8 @@ export default function App() {
 
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <div className="bio-row">
-                      <span className="bio-label">Rider Account Email</span>
-                      <span className="bio-value" style={{ fontSize: '13px' }}>{driverProfile.email}</span>
+                      <span className="bio-label">Rider Account ID</span>
+                      <span className="bio-value" style={{ fontSize: '12px', fontFamily: 'monospace' }}>{driverProfile.id}</span>
                     </div>
 
                     <div className="bio-row">
