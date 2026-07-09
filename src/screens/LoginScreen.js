@@ -28,7 +28,7 @@ export default function LoginScreen() {
   
   const [authError, setAuthError] = useState('');
   
-  const { login, register, signInWithPhone, verifyPhoneOtp, loading } = useContext(AuthContext);
+  const { login, register, signInWithPhone, verifyPhoneOtp, loginAsGuest, loading } = useContext(AuthContext);
 
   const handleSubmit = async () => {
     if (!email || !password) {
@@ -94,6 +94,15 @@ export default function LoginScreen() {
       }
     } catch (err) {
       setAuthError(err.message || "Incorrect verification code.");
+    }
+  };
+
+  const handleGuestLogin = () => {
+    setAuthError('');
+    try {
+      loginAsGuest();
+    } catch (err) {
+      setAuthError("Guest sign-in failed.");
     }
   };
 
@@ -320,6 +329,16 @@ export default function LoginScreen() {
             >
               <Ionicons name="flash" size={18} color="#06C167" style={{ marginRight: 6 }} />
               <Text style={styles.bypassBtnText}>Quick Sandbox Sign-In</Text>
+            </TouchableOpacity>
+
+            {/* Guest Login Button */}
+            <TouchableOpacity 
+              style={[styles.bypassBtn, { marginTop: 12, borderColor: '#666' }]} 
+              onPress={handleGuestLogin}
+              disabled={loading}
+            >
+              <Ionicons name="person-outline" size={18} color="#666" style={{ marginRight: 6 }} />
+              <Text style={[styles.bypassBtnText, { color: '#666' }]}>Continue as Guest</Text>
             </TouchableOpacity>
           </View>
         </View>

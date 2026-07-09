@@ -112,6 +112,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginAsGuest = () => {
+    setLoading(true);
+    setError(null);
+    const guestUser = {
+      uid: 'guest_' + Math.random().toString(36).substring(2, 9),
+      email: 'guest@chow.com',
+      displayName: 'Guest User',
+      isAnonymous: true
+    };
+    setUser(guestUser);
+    setLoading(false);
+    return guestUser;
+  };
+
   const logout = async () => {
     setLoading(true);
     try {
@@ -125,7 +139,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, register, signInWithPhone, verifyPhoneOtp, logout, isMock: false }}>
+    <AuthContext.Provider value={{ user, loading, error, login, register, signInWithPhone, verifyPhoneOtp, loginAsGuest, logout, isMock: false }}>
       {children}
     </AuthContext.Provider>
   );
