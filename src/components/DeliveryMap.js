@@ -1,5 +1,5 @@
 import React from 'react';
-import MapView, { Marker, UrlTile } from 'react-native-maps';
+import MapView, { Marker, UrlTile, Polyline } from 'react-native-maps';
 
 export default function DeliveryMap({ style, region, restaurantCoords, userCoords, riderLocation }) {
   return (
@@ -14,6 +14,19 @@ export default function DeliveryMap({ style, region, restaurantCoords, userCoord
         maximumZ={19}
         flipY={false}
       />
+
+      {/* Route Path Line from Rider to User */}
+      {riderLocation ? (
+        <Polyline
+          coordinates={[
+            { latitude: riderLocation.latitude, longitude: riderLocation.longitude },
+            { latitude: userCoords.latitude, longitude: userCoords.longitude }
+          ]}
+          strokeColor="#06C167" // Emerald green path line
+          strokeWidth={4}
+          lineDashPattern={[5, 10]} // Dashed line styling
+        />
+      ) : null}
 
       {/* Origin/Restaurant Marker */}
       <Marker
