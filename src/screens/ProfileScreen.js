@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -11,9 +11,26 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../context/AuthContext';
 import FooterNavbar from '../components/FooterNavbar';
+import { ref, onValue } from 'firebase/database';
+import { database } from '../../firebase';
 
 export default function ProfileScreen({ navigation }) {
   const { user, logout, isMock } = useContext(AuthContext);
+  const [walletBalance, setWalletBalance] = useState(0.00);
+
+  useEffect(() => {
+    const userId = user?.uid || 'guest_user';
+    const balanceRef = ref(database, `users/${userId}/wallet/balance`);
+    const unsubscribe = onValue(balanceRef, (snapshot) => {
+      const val = snapshot.val();
+      if (typeof val === 'number') {
+        setWalletBalance(val);
+      } else {
+        setWalletBalance(0.00);
+      }
+    });
+    return () => unsubscribe();
+  }, [user]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -26,6 +43,15 @@ export default function ProfileScreen({ navigation }) {
           />
           <Text style={styles.userName}>{user?.email ? user.email.split('@')[0] : 'Guest User'}</Text>
           <Text style={styles.userEmail}>{user?.email || 'guest@example.com'}</Text>
+
+          {/* Interactive Wallet Balance Badge */}
+          <TouchableOpacity 
+            style={styles.walletBadge} 
+            onPress={() => navigation.navigate('Wallet')}
+          >
+            <Ionicons name="wallet" size={16} color="#06C167" style={{ marginRight: 6 }} />
+            <Text style={styles.walletBadgeText}>Wallet: ${walletBalance.toFixed(2)}</Text>
+          </TouchableOpacity>
           
           {isMock ? (
             <View style={styles.mockBadge}>
@@ -65,6 +91,14 @@ export default function ProfileScreen({ navigation }) {
               <Ionicons name="notifications-outline" size={20} color="#06C167" />
             </View>
             <Text style={styles.optionText}>Notifications</Text>
+            <Ionicons name="chevron-forward" size={16} color="#CCCCCC" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.optionRow} onPress={() => navigation.navigate('Wallet')}>
+            <View style={styles.optionIconContainer}>
+              <Ionicons name="wallet-outline" size={20} color="#06C167" />
+            </View>
+            <Text style={styles.optionText}>My Chow Wallet</Text>
             <Ionicons name="chevron-forward" size={16} color="#CCCCCC" />
           </TouchableOpacity>
         </View>
@@ -189,6 +223,23 @@ const styles = StyleSheet.create({
   logoutBtnText: {
     color: '#D32F2F',
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  walletBadge: {
+    backgroundColor: '#F0FAF4',
+    borderColor: '#E6FAF0',
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  walletBadgeText: {
+    color: '#06C167',
+    fontSize: 13.5,
     fontWeight: 'bold',
   },
 });
