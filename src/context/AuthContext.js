@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
-import { auth } from '../services/firebase';
+import { auth, database } from '../services/firebase';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -53,6 +53,18 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const response = await createUserWithEmailAndPassword(auth, email, password);
+      // Write profile to database
+      try {
+        const { ref: dbRef, set: dbSet } = await import('firebase/database');
+        const userRef = dbRef(database, `users/${response.user.uid}`);
+        await dbSet(userRef, {
+          uid: response.user.uid,
+          email: response.user.email || email,
+          joinedAt: new Date().toISOString()
+        });
+      } catch (dbErr) {
+        console.warn("Writing registered user to DB failed:", dbErr);
+      }
       setUser(response.user);
       return response.user;
     } catch (err) {
@@ -96,6 +108,19 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const response = await confirmationResult.confirm(code);
+      // Write profile to database
+      try {
+        const { ref: dbRef, set: dbSet } = await import('firebase/database');
+        const userRef = dbRef(database, `users/${response.user.uid}`);
+        await dbSet(userRef, {
+          uid: response.user.uid,
+          email: response.user.email || 'Phone User',
+          phoneNumber: response.user.phoneNumber || 'None',
+          joinedAt: new Date().toISOString()
+        });
+      } catch (dbErr) {
+        console.warn("Writing phone user to DB failed:", dbErr);
+      }
       setUser(response.user);
       return response.user;
     } catch (err) {
@@ -112,15 +137,30 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginAsGuest = () => {
+  const loginAsGuest = async () => {
     setLoading(true);
     setError(null);
+    const guestUid = 'guest_' + Math.random().toString(36).substring(2, 9);
     const guestUser = {
-      uid: 'guest_' + Math.random().toString(36).substring(2, 9),
+      uid: guestUid,
       email: 'guest@chow.com',
       displayName: 'Guest User',
       isAnonymous: true
     };
+    
+    // Write profile to database
+    try {
+      const { ref: dbRef, set: dbSet } = await import('firebase/database');
+      const userRef = dbRef(database, `users/${guestUid}`);
+      await dbSet(userRef, {
+        uid: guestUid,
+        email: 'guest@chow.com',
+        joinedAt: new Date().toISOString()
+      });
+    } catch (dbErr) {
+      console.warn("Writing guest user to DB failed:", dbErr);
+    }
+
     setUser(guestUser);
     setLoading(false);
     return guestUser;
