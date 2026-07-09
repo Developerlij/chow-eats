@@ -15,7 +15,7 @@ export default function GroceryManager() {
   const [prodName, setProdName] = useState('');
   const [prodDesc, setProdDesc] = useState('');
   const [prodPrice, setProdPrice] = useState('');
-  const [prodCat, setProdCat] = useState('');
+  const [prodCat, setProdCat] = useState('Fresh Produce');
   const [prodImage, setProdImage] = useState('');
 
   // UI state
@@ -33,11 +33,12 @@ export default function GroceryManager() {
       if (data) {
         const list = Object.keys(data).map(key => ({ id: key, ...data[key] }));
         setCategories(list);
-        if (list.length > 0 && !prodCat) {
+        if (list.length > 0) {
           setProdCat(list[0].name);
         }
       } else {
         setCategories([]);
+        setProdCat('Fresh Produce');
       }
     });
 
