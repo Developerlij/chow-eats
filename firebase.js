@@ -5,13 +5,13 @@ import { Platform } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY", // Make sure to replace this in Firebase Console!
+  apiKey: "AIzaSyDA2IiOFwQEJojWqLFo9vqUAhAUQWzSFvM",
   authDomain: "masi-6d02f.firebaseapp.com",
   databaseURL: "https://masi-6d02f-default-rtdb.firebaseio.com",
   projectId: "masi-6d02f",
-  storageBucket: "masi-6d02f.appspot.com",
+  storageBucket: "masi-6d02f.firebasestorage.app",
   messagingSenderId: "247441973109",
-  appId: "YOUR_APP_ID" // Make sure to replace this in Firebase Console!
+  appId: "1:247441973109:android:67700abcc1a288c69c3d3c"
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
