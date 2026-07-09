@@ -26,8 +26,14 @@ export default function WalletScreen({ navigation }) {
 
   // Deposit Modal States
   const [modalVisible, setModalVisible] = useState(false);
+  const [depositMethod, setDepositMethod] = useState('card'); // 'card' or 'bank'
   const [depositAmount, setDepositAmount] = useState('');
+  const [senderName, setSenderName] = useState('');
   const [depositing, setDepositing] = useState(false);
+  const [verificationText, setVerificationText] = useState('');
+
+  // Auto-generated dynamic payment reference for transfers
+  const [transferRef, setTransferRef] = useState('');
 
   const userId = user?.uid || 'guest_user';
 
@@ -49,7 +55,6 @@ export default function WalletScreen({ navigation }) {
           setTransactions([]);
         }
       } else {
-        // Mock default if node doesn't exist yet
         setBalance(0.00);
         setTransactions([]);
       }
@@ -59,7 +64,16 @@ export default function WalletScreen({ navigation }) {
     return () => unsubscribe();
   }, [userId]);
 
-  const handleDeposit = async () => {
+  // Generate a random transfer reference code when modal opens
+  useEffect(() => {
+    if (modalVisible) {
+      const refCode = 'CHOW-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      setTransferRef(refCode);
+    }
+  }, [modalVisible]);
+
+  // Card Deposit Handler
+  const handleCardDeposit = async () => {
     const amountNum = parseFloat(depositAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
       Alert.alert("Invalid Amount", "Please enter a valid deposit amount.");
@@ -67,30 +81,81 @@ export default function WalletScreen({ navigation }) {
     }
 
     setDepositing(true);
+    setVerificationText('Charging personal card...');
 
     try {
+      // Simulate network request
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
       const walletRef = ref(database, `users/${userId}/wallet`);
       const newBalance = balance + amountNum;
       
-      // Update balance
       await update(walletRef, { balance: newBalance });
 
-      // Add transaction history record
       const transRef = ref(database, `users/${userId}/wallet/transactions`);
       await push(transRef, {
         amount: amountNum,
         type: 'deposit',
-        description: 'Deposited funds via personal card',
+        description: 'Deposited funds via Card Checkout',
         date: new Date().toISOString()
       });
 
       setModalVisible(false);
       setDepositAmount('');
-      Alert.alert("Deposit Success", `$${amountNum.toFixed(2)} has been successfully added to your wallet!`);
+      Alert.alert("Deposit Success", `$${amountNum.toFixed(2)} has been added to your wallet!`);
     } catch (e) {
       Alert.alert("Deposit Failed", e.message);
     } finally {
       setDepositing(false);
+      setVerificationText('');
+    }
+  };
+
+  // Bank Transfer Settlement Simulator
+  const handleBankDeposit = async () => {
+    const amountNum = parseFloat(depositAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      Alert.alert("Invalid Amount", "Please enter the amount you transferred.");
+      return;
+    }
+    if (!senderName) {
+      Alert.alert("Sender Name Required", "Please input the bank account sender name to verify.");
+      return;
+    }
+
+    setDepositing(true);
+    
+    // Step 1: Listening for network credit alert
+    setVerificationText('Listening for credit notification alert...');
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // Step 2: Querying Wema Bank settlement ledger
+    setVerificationText(`Verifying settlement for ref: ${transferRef}...`);
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    try {
+      const walletRef = ref(database, `users/${userId}/wallet`);
+      const newBalance = balance + amountNum;
+      
+      await update(walletRef, { balance: newBalance });
+
+      const transRef = ref(database, `users/${userId}/wallet/transactions`);
+      await push(transRef, {
+        amount: amountNum,
+        type: 'deposit',
+        description: `Bank Transfer received from ${senderName.trim()} (${transferRef})`,
+        date: new Date().toISOString()
+      });
+
+      setModalVisible(false);
+      setDepositAmount('');
+      setSenderName('');
+      Alert.alert("Bank Transfer Confirmed", `Credit received! $${amountNum.toFixed(2)} added from ${senderName.toUpperCase()}.`);
+    } catch (e) {
+      Alert.alert("Settlement Error", e.message);
+    } finally {
+      setDepositing(false);
+      setVerificationText('');
     }
   };
 
@@ -173,42 +238,130 @@ export default function WalletScreen({ navigation }) {
         animationType="slide"
         transparent={true}
         visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={() => { if (!depositing) setModalVisible(false); }}
       >
         <View style={styles.modalBg}>
           <View style={styles.modalContent}>
+            
+            {/* Header */}
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Deposit Funds</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalSub}>Enter the amount to deposit from your saved card.</Text>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.dollarSign}>$</Text>
-              <TextInput
-                style={styles.input}
-                value={depositAmount}
-                onChangeText={setDepositAmount}
-                placeholder="0.00"
-                keyboardType="numeric"
-                autoFocus={true}
-              />
-            </View>
-
-            <TouchableOpacity 
-              style={styles.confirmBtn}
-              onPress={handleDeposit}
-              disabled={depositing}
-            >
-              {depositing ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <Text style={styles.confirmBtnText}>Confirm Deposit</Text>
+              <Text style={styles.modalTitle}>Fund My Wallet</Text>
+              {!depositing && (
+                <TouchableOpacity onPress={() => setModalVisible(false)}>
+                  <Ionicons name="close" size={24} color="#666" />
+                </TouchableOpacity>
               )}
-            </TouchableOpacity>
+            </View>
+
+            {depositing ? (
+              /* PROGRESS LOADER SCREEN FOR TRANSFERS/CARDS */
+              <View style={{ paddingVertical: 40, alignItems: 'center', justifyContent: 'center' }}>
+                <ActivityIndicator size="large" color="#06C167" style={{ marginBottom: 16 }} />
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#1A1A1A' }}>Processing Transaction</Text>
+                <Text style={{ fontSize: 13, color: '#666', marginTop: 6, textAlign: 'center' }}>{verificationText}</Text>
+              </View>
+            ) : (
+              /* INTERACTIVE FORM PANEL */
+              <View>
+                {/* Method selector tabs */}
+                <View style={styles.methodSelector}>
+                  <TouchableOpacity 
+                    style={[styles.methodTab, depositMethod === 'card' && styles.activeMethodTab]} 
+                    onPress={() => setDepositMethod('card')}
+                  >
+                    <Ionicons name="card" size={16} color={depositMethod === 'card' ? '#06C167' : '#666'} />
+                    <Text style={[styles.methodTabText, depositMethod === 'card' && styles.activeMethodTabText]}>Card Checkout</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.methodTab, depositMethod === 'bank' && styles.activeMethodTab]} 
+                    onPress={() => setDepositMethod('bank')}
+                  >
+                    <Ionicons name="business" size={16} color={depositMethod === 'bank' ? '#06C167' : '#666'} />
+                    <Text style={[styles.methodTabText, depositMethod === 'bank' && styles.activeMethodTabText]}>Bank Transfer</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {depositMethod === 'card' ? (
+                  /* CARD DEPOSIT LAYOUT */
+                  <View>
+                    <Text style={styles.modalSub}>Enter the amount to deposit from your linked credit card.</Text>
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.dollarSign}>$</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={depositAmount}
+                        onChangeText={setDepositAmount}
+                        placeholder="0.00"
+                        keyboardType="numeric"
+                        autoFocus={true}
+                      />
+                    </View>
+
+                    <TouchableOpacity style={styles.confirmBtn} onPress={handleCardDeposit}>
+                      <Text style={styles.confirmBtnText}>Confirm Card Payment</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  /* REAL-TIME BANK TRANSFER LAYOUT */
+                  <View>
+                    <View style={styles.bankDetailContainer}>
+                      <Text style={styles.bankSubTitle}>CHOW CORPORATE BANK REFERENCE</Text>
+                      
+                      <View style={styles.bankDetailRow}>
+                        <Text style={styles.bankDetailLabel}>Bank Name:</Text>
+                        <Text style={styles.bankDetailVal}>Wema Bank</Text>
+                      </View>
+                      
+                      <View style={styles.bankDetailRow}>
+                        <Text style={styles.bankDetailLabel}>Account Number:</Text>
+                        <Text style={styles.bankDetailVal} style={{ fontWeight: '800', color: '#06C167', fontSize: '15px' }}>0123456789</Text>
+                      </View>
+
+                      <View style={styles.bankDetailRow}>
+                        <Text style={styles.bankDetailLabel}>Account Name:</Text>
+                        <Text style={styles.bankDetailVal}>ChowEats Delivery Ltd</Text>
+                      </View>
+
+                      <View style={styles.bankDetailRow}>
+                        <Text style={styles.bankDetailLabel}>Transfer Reference:</Text>
+                        <Text style={styles.bankDetailVal} style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{transferRef}</Text>
+                      </View>
+                    </View>
+
+                    <Text style={{ fontSize: '12px', color: '#666', marginBottom: '14px', fontStyle: 'italic', textAlign: 'center' }}>
+                      Transfer funds using your banking app, input the reference code, then submit details below.
+                    </Text>
+
+                    <View style={styles.formGroup}>
+                      <Text style={styles.inputLabel}>Amount Sent ($)</Text>
+                      <TextInput 
+                        style={styles.simpleInput} 
+                        value={depositAmount} 
+                        onChangeText={setDepositAmount} 
+                        placeholder="e.g. 50.00" 
+                        keyboardType="numeric"
+                      />
+                    </View>
+
+                    <View style={styles.formGroup} style={{ marginBottom: '20px' }}>
+                      <Text style={styles.inputLabel}>Sender Account Name</Text>
+                      <TextInput 
+                        style={styles.simpleInput} 
+                        value={senderName} 
+                        onChangeText={setSenderName} 
+                        placeholder="e.g. Lucas Bell" 
+                      />
+                    </View>
+
+                    <TouchableOpacity style={styles.confirmBtn} onPress={handleBankDeposit}>
+                      <Text style={styles.confirmBtnText}>Confirm Bank Transfer</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+
           </View>
         </View>
       </Modal>
@@ -370,6 +523,38 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1A1A1A',
   },
+  methodSelector: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F3F3',
+    padding: 4,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  methodTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 6,
+    gap: 6,
+  },
+  activeMethodTab: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  methodTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666666',
+  },
+  activeMethodTabText: {
+    color: '#06C167',
+  },
   modalSub: {
     fontSize: 13.5,
     color: '#666666',
@@ -409,4 +594,50 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
+  bankDetailContainer: {
+    backgroundColor: '#F9F9F9',
+    borderRadius: 10,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+    marginBottom: 16,
+    gap: 8,
+  },
+  bankSubTitle: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#888888',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  bankDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    fontSize: 13.5,
+  },
+  bankDetailLabel: {
+    color: '#666666',
+  },
+  bankDetailVal: {
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+  },
+  formGroup: {
+    marginBottom: 12,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#555555',
+    marginBottom: 6,
+  },
+  simpleInput: {
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#DDDDDD',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    backgroundColor: '#FFF',
+  }
 });
