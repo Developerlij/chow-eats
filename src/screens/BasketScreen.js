@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -20,6 +20,8 @@ import { database, isMockFirebase } from '../../firebase';
 export default function BasketScreen() {
   const navigation = useNavigation();
   const { restaurant, items, removeDish, getBasketTotal, startOrderTracking } = useContext(BasketContext);
+
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
 
   const subtotal = getBasketTotal();
   const deliveryFee = subtotal > 0 ? 5.99 : 0;
@@ -49,6 +51,7 @@ export default function BasketScreen() {
       deliveryFee,
       total,
       status: 'Preparing',
+      paymentMethod, // 'Transfer' or 'Cash'
       createdAt: new Date().toISOString(),
       rider: {
         name: 'Sarah Jenkins',
@@ -152,6 +155,48 @@ export default function BasketScreen() {
               </TouchableOpacity>
             </View>
           ))}
+        </View>
+
+        {/* Payment Method Selector */}
+        <View style={styles.paymentContainer}>
+          <Text style={styles.paymentTitle}>Payment Method</Text>
+          <View style={styles.paymentOptionsRow}>
+            <TouchableOpacity 
+              style={[
+                styles.paymentOptionCard, 
+                paymentMethod === 'Cash' && styles.paymentOptionCardActive
+              ]}
+              onPress={() => setPaymentMethod('Cash')}
+            >
+              <Ionicons 
+                name="cash-outline" 
+                size={18} 
+                color={paymentMethod === 'Cash' ? '#06C167' : '#666666'} 
+              />
+              <Text style={[
+                styles.paymentOptionText, 
+                paymentMethod === 'Cash' && styles.paymentOptionTextActive
+              ]}>Cash on Delivery</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[
+                styles.paymentOptionCard, 
+                paymentMethod === 'Transfer' && styles.paymentOptionCardActive
+              ]}
+              onPress={() => setPaymentMethod('Transfer')}
+            >
+              <Ionicons 
+                name="wallet-outline" 
+                size={18} 
+                color={paymentMethod === 'Transfer' ? '#06C167' : '#666666'} 
+              />
+              <Text style={[
+                styles.paymentOptionText, 
+                paymentMethod === 'Transfer' && styles.paymentOptionTextActive
+              ]}>Bank Transfer</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
 
@@ -376,5 +421,48 @@ const styles = StyleSheet.create({
     color: '#06C167',
     fontSize: 15,
     fontWeight: 'bold',
+  },
+  paymentContainer: {
+    padding: 20,
+    backgroundColor: '#FAFAFA',
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEEEEE',
+    marginTop: 12,
+  },
+  paymentTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+    marginBottom: 12,
+  },
+  paymentOptionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  paymentOptionCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderWidth: 1.5,
+    borderColor: '#EAEAEA',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    gap: 8,
+  },
+  paymentOptionCardActive: {
+    borderColor: '#06C167',
+    backgroundColor: '#E8F5E9',
+  },
+  paymentOptionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666666',
+  },
+  paymentOptionTextActive: {
+    color: '#06C167',
   },
 });

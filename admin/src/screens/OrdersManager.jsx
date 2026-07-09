@@ -211,6 +211,13 @@ export default function OrdersManager() {
               </div>
 
               <div>
+                <h4 style={{ fontSize: '13px', color: '#888', fontWeight: '500' }}>PAYMENT METHOD</h4>
+                <p style={{ fontSize: '14px', fontWeight: '600', color: '#1A1A1A', marginTop: '4px' }}>
+                  {selectedOrder.paymentMethod === 'Transfer' ? '🏦 Bank Transfer' : '💵 Cash on Delivery'}
+                </p>
+              </div>
+
+              <div>
                 <h4 style={{ fontSize: '13px', color: '#888', fontWeight: '500' }}>DELIVERY STATUS</h4>
                 <div style={{ display: 'flex', alignItems: 'center', marginTop: '8px', gap: '8px' }}>
                   <span className={`status-badge ${
