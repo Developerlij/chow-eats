@@ -600,28 +600,43 @@ export default function App() {
                         <div 
                           key={order.id} 
                           style={{ 
-                            padding: '12px', 
+                            padding: '14px', 
                             borderRadius: '8px', 
                             backgroundColor: 'rgba(255, 255, 255, 0.02)', 
                             border: '1px solid #333', 
                             display: 'flex', 
                             flexDirection: 'column', 
-                            gap: '6px' 
+                            gap: '8px' 
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#888' }}>ID: {order.id.slice(0, 10)}...</span>
-                            <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#06C167' }}>+${(order.total || 0).toFixed(2)}</span>
+                            <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#666' }}>ID: {order.id.slice(0, 10)}...</span>
+                            <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#06C167' }}>+${(order.total || 0).toFixed(2)}</span>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px', color: '#DDD' }}>
+                            <div>
+                              <span style={{ color: '#888', marginRight: '4px' }}>Customer:</span>
+                              <strong style={{ color: '#FFF' }}>{order.userEmail || 'Guest User'}</strong>
+                            </div>
+                            <div>
+                              <span style={{ color: '#888', marginRight: '4px' }}>Pickup From:</span>
+                              <strong>{order.restaurant?.name || 'Chow Groceries'}</strong>
+                            </div>
+                            <div>
+                              <span style={{ color: '#888', marginRight: '4px' }}>Delivered To:</span>
+                              <strong style={{ color: '#FFF' }}>{order.deliveryAddress || '123 Roman Way, Food Town'}</strong>
+                            </div>
                           </div>
                           
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#DDD' }}>
-                            <span>📍 {order.restaurant?.name || 'Chow Groceries'}</span>
-                            <span>{order.paymentMethod === 'Transfer' ? '🏦 Transfer' : '💵 Cash'}</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', fontSize: '11px', color: '#555' }}>
+                            <span>
+                              Delivered: {new Date(order.createdAt).toLocaleDateString()} at {new Date(order.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            </span>
+                            <span style={{ padding: '2px 6px', backgroundColor: '#222', borderRadius: '4px', color: order.paymentMethod === 'Transfer' ? '#0288D1' : '#F57C00' }}>
+                              {order.paymentMethod === 'Transfer' ? '🏦 Bank Transfer' : '💵 Collected Cash'}
+                            </span>
                           </div>
-                          
-                          <span style={{ fontSize: '11px', color: '#666', alignSelf: 'flex-start' }}>
-                            Delivered on: {new Date(order.createdAt).toLocaleDateString()} at {new Date(order.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                          </span>
                         </div>
                       ))
                     ) : (

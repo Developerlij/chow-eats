@@ -12,6 +12,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { BasketContext } from '../context/BasketContext';
+import { AuthContext } from '../context/AuthContext';
 import { urlFor } from '../services/dataService';
 import FooterNavbar from '../components/FooterNavbar';
 import { ref, push, set } from 'firebase/database';
@@ -20,6 +21,7 @@ import { database, isMockFirebase } from '../../firebase';
 export default function BasketScreen() {
   const navigation = useNavigation();
   const { restaurant, items, removeDish, getBasketTotal, startOrderTracking } = useContext(BasketContext);
+  const { user } = useContext(AuthContext);
 
   const [paymentMethod, setPaymentMethod] = useState('Cash');
 
@@ -34,6 +36,9 @@ export default function BasketScreen() {
   const handlePlaceOrder = async () => {
     const orderId = `order_${Date.now()}`;
     const orderData = {
+      userId: user?.uid || 'guest_temp',
+      userEmail: user?.email || 'guest@chow.com',
+      deliveryAddress: '123 Roman Way, Food Town',
       restaurant: {
         _id: restaurant._id,
         name: restaurant.name,
