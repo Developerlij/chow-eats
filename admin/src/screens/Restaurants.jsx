@@ -117,6 +117,7 @@ export default function Restaurants() {
                   <option value="Sushi">Sushi</option>
                   <option value="Healthy">Healthy</option>
                   <option value="Desserts">Desserts</option>
+                  <option value="Nigerian">Nigerian</option>
                 </select>
               </div>
 

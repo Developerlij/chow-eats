@@ -56,7 +56,8 @@ const mockCategories = [
   { _id: 'cat3', name: 'Sushi', image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=500&auto=format&fit=crop&q=60' },
   { _id: 'cat4', name: 'Healthy', image: 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=500&auto=format&fit=crop&q=60' },
   { _id: 'cat5', name: 'Desserts', image: 'https://images.unsplash.com/photo-1551024601-bec78aea704b?w=500&auto=format&fit=crop&q=60' },
-  { _id: 'cat6', name: 'Beverages', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=500&auto=format&fit=crop&q=60' }
+  { _id: 'cat6', name: 'Beverages', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=500&auto=format&fit=crop&q=60' },
+  { _id: 'cat7', name: 'Nigerian', image: 'https://images.unsplash.com/photo-1627308595229-7830a5c91f9f?w=500&auto=format&fit=crop&q=60' }
 ];
 
 const mockDishes = {
@@ -79,6 +80,12 @@ const mockDishes = {
     { _id: 'dish10', name: 'Quinoa Power Bowl', description: 'Tri-color quinoa, roasted sweet potatoes, avocado, edamame, baby spinach, with lemon tahini dressing.', price: 11.49, image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop&q=60' },
     { _id: 'dish11', name: 'Avocado Caesar Salad', description: 'Crispy romaine lettuce, shaved parmesan, garlic croutons, avocado slices, and light caesar dressing.', price: 9.99, image: 'https://images.unsplash.com/photo-1550304943-4f24f54ddde9?w=500&auto=format&fit=crop&q=60' },
     { _id: 'dish12', name: 'Green Detox Elixir', description: 'Freshly pressed juice with celery, cucumber, kale, green apple, ginger, and lemon juice.', price: 5.99, image: 'https://images.unsplash.com/photo-1610970881699-44a5587caaec?w=500&auto=format&fit=crop&q=60' }
+  ],
+  nigerian: [
+    { _id: 'dish13', name: 'Party Jollof Rice Feast', description: 'Rich, smoky, and party-style Nigerian Jollof rice, served with fried plantain (dodo) and succulent grilled chicken.', price: 15.99, image: 'https://images.unsplash.com/photo-1627308595229-7830a5c91f9f?w=500&auto=format&fit=crop&q=60' },
+    { _id: 'dish14', name: 'Egusi & Pounded Yam', description: 'Rich melon seed soup cooked with spinach, assorted meats, and dried fish, served with smooth pounded yam.', price: 18.49, image: 'https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?w=500&auto=format&fit=crop&q=60' },
+    { _id: 'dish15', name: 'Spicy Beef Suya Skewers', description: 'Grilled beef skewers coated in traditional Yaji spice (peanut and chili blend), served with sliced onions.', price: 12.99, image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=500&auto=format&fit=crop&q=60' },
+    { _id: 'dish16', name: 'Sweet Golden Puff Puff', description: 'Golden, fluffy fried dough balls, sweet and soft, a classic Nigerian street food snack.', price: 6.99, image: 'https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?w=500&auto=format&fit=crop&q=60' }
   ]
 };
 
@@ -134,6 +141,19 @@ const mockRestaurants = [
     lng: -122.4194,
     dishes: mockDishes.green,
     category: 'Healthy'
+  },
+  {
+    _id: 'rest5',
+    name: 'Naija Buka Cuisine',
+    image: 'https://images.unsplash.com/photo-1627308595229-7830a5c91f9f?w=800&auto=format&fit=crop&q=80',
+    rating: 4.9,
+    reviews: '210 reviews',
+    address: '90 Lagos Street, Food Town',
+    description: 'Serving traditional, rich Nigerian buka flavors: smoky Jollof, delicious Egusi soup, and grilled suya meats.',
+    lat: 37.7719,
+    lng: -122.4294,
+    dishes: mockDishes.nigerian,
+    category: 'Nigerian'
   }
 ];
 
