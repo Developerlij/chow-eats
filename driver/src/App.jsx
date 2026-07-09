@@ -260,7 +260,7 @@ export default function App() {
       guarantorName: formGuarantorName,
       guarantorPhone: formGuarantorPhone,
       image: formImage,
-      status: 'Approved', // Grant immediate access!
+      status: 'Pending Approval',
       joinedAt: new Date().toISOString()
     };
 
@@ -625,6 +625,46 @@ export default function App() {
                 {isRegistering ? 'Submitting...' : 'Submit Profile & Go Online'}
               </button>
             </form>
+          </div>
+        ) : driverProfile.status === 'Pending Approval' ? (
+          /* AWAITING ADMIN APPROVAL SCREEN */
+          <div className="card" style={{ borderColor: '#F57C00', textAlign: 'center', padding: '32px 20px' }}>
+            <div className="profile-header" style={{ padding: '10px 0' }}>
+              <div className="profile-avatar-circle" style={{ width: '90px', height: '90px', borderColor: '#F57C00' }}>
+                <img src={driverProfile.image} alt={driverProfile.name} className="profile-avatar-img" />
+              </div>
+              <h2 className="profile-name" style={{ margin: '8px 0 2px 0' }}>{driverProfile.name}</h2>
+              <span className="profile-status" style={{ backgroundColor: 'rgba(245, 124, 0, 0.15)', color: '#F57C00', borderColor: 'rgba(245, 124, 0, 0.3)' }}>
+                Awaiting Approval
+              </span>
+            </div>
+            
+            <div className="card-divider" />
+
+            <h3 style={{ color: '#FFF', fontSize: '16px', fontWeight: 'bold', margin: '16px 0 8px 0' }}>
+              Verification Pending
+            </h3>
+            <p style={{ fontSize: '13px', color: '#AAA', lineHeight: '20px', marginBottom: '24px' }}>
+              Thank you for signing up! Your rider registration details have been submitted to the Admin team for review. 
+              Once your account is approved, this screen will automatically refresh to grant you access to deliveries.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px', color: '#888', backgroundColor: 'rgba(255, 255, 255, 0.02)', padding: '12px', borderRadius: '8px', border: '1px solid #333', textAlign: 'left', marginBottom: '24px' }}>
+              <div><strong>Registered Phone:</strong> {driverProfile.phone}</div>
+              <div><strong>Vehicle Type:</strong> {driverProfile.vehicle}</div>
+              <div><strong>License Plate:</strong> {driverProfile.plate.toUpperCase()}</div>
+              <div><strong>Engine Number:</strong> {driverProfile.engine ? driverProfile.engine.toUpperCase() : '—'}</div>
+              <div><strong>Guarantor:</strong> {driverProfile.guarantorName} ({driverProfile.guarantorPhone})</div>
+            </div>
+
+            <button 
+              className="btn btn-secondary" 
+              style={{ width: '100%', borderColor: '#D32F2F', color: '#D32F2F', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              onClick={handleLogOut}
+            >
+              <LogOut size={16} />
+              Cancel Application & Log Out
+            </button>
           </div>
         ) : (
           /* AUTHENTICATED TABS SYSTEM */
