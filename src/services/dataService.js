@@ -1,5 +1,7 @@
 import { createClient } from '@sanity/client';
 import imageUrlBuilder from '@sanity/image-url';
+import { ref, get } from 'firebase/database';
+import { database, isMockFirebase } from '../../firebase';
 
 // Replace with your Sanity credentials when deploying to production
 const sanityConfig = {
@@ -160,6 +162,18 @@ const mockFeatured = [
 // SERVICE API METHODS
 // ----------------------------------------------------
 export const getCategories = async () => {
+  if (!isMockFirebase && database) {
+    try {
+      const snapshot = await get(ref(database, 'categories'));
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        return Object.keys(data).map(key => ({ _id: key, ...data[key] }));
+      }
+    } catch (e) {
+      console.warn("Failed to fetch categories from Firebase:", e);
+    }
+  }
+  
   if (isMockSanity) {
     return mockCategories;
   }
@@ -173,6 +187,40 @@ export const getCategories = async () => {
 };
 
 export const getFeaturedRows = async () => {
+  if (!isMockFirebase && database) {
+    try {
+      const restSnapshot = await get(ref(database, 'restaurants'));
+      if (restSnapshot.exists()) {
+        const restData = restSnapshot.val();
+        const dbRestaurants = Object.keys(restData).map(key => ({ _id: key, ...restData[key] }));
+        
+        // Return default constructed featured rows using live database restaurants
+        return [
+          {
+            _id: 'feat1',
+            name: 'Featured Items',
+            description: 'Handpicked favorites in your city',
+            restaurants: dbRestaurants
+          },
+          {
+            _id: 'feat2',
+            name: 'Offers Near You',
+            description: 'Fastest delivery times straight to your door',
+            restaurants: dbRestaurants
+          },
+          {
+            _id: 'feat3',
+            name: 'Trending Restaurants',
+            description: 'Top-rated spots this week',
+            restaurants: dbRestaurants.filter((_, idx) => idx % 2 === 0)
+          }
+        ];
+      }
+    } catch (e) {
+      console.warn("Failed to fetch featured rows from Firebase:", e);
+    }
+  }
+
   if (isMockSanity) {
     return mockFeatured;
   }
@@ -195,6 +243,15 @@ export const getFeaturedRows = async () => {
 };
 
 export const getFeaturedRowById = async (id) => {
+  if (!isMockFirebase && database) {
+    try {
+      const rows = await getFeaturedRows();
+      return rows.find(r => r._id === id) || null;
+    } catch (e) {
+      console.warn("Failed to fetch featured row by ID from Firebase:", e);
+    }
+  }
+
   if (isMockSanity) {
     return mockFeatured.find(f => f._id === id) || null;
   }
@@ -217,6 +274,19 @@ export const getFeaturedRowById = async (id) => {
 };
 
 export const getRestaurantsByCategory = async (categoryName) => {
+  if (!isMockFirebase && database) {
+    try {
+      const restSnapshot = await get(ref(database, 'restaurants'));
+      if (restSnapshot.exists()) {
+        const restData = restSnapshot.val();
+        const dbRestaurants = Object.keys(restData).map(key => ({ _id: key, ...restData[key] }));
+        return dbRestaurants.filter(r => r.category === categoryName);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch restaurants by category from Firebase:", e);
+    }
+  }
+
   if (isMockSanity) {
     return mockRestaurants.filter(r => r.category === categoryName);
   }
