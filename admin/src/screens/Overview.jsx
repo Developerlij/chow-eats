@@ -15,6 +15,7 @@ export default function Overview() {
   const [allOrders, setAllOrders] = useState([]);
   const [liveDrivers, setLiveDrivers] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
+  const [userLocations, setUserLocations] = useState([]);
 
   // Leaflet Map States
   const [mapInstance, setMapInstance] = useState(null);
@@ -75,10 +76,34 @@ export default function Overview() {
       }
     });
 
+    // d. Fetch Live User Locations
+    const userLocsRef = ref(database, 'userLocations');
+    const unsubscribeUserLocs = onValue(userLocsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+        setUserLocations(list);
+        setMetrics(prev => ({
+          ...prev,
+          usersCount: list.length
+        }));
+      } else {
+        setUserLocations([]);
+        setMetrics(prev => ({
+          ...prev,
+          usersCount: 0
+        }));
+      }
+    });
+
     return () => {
       unsubscribeOrders();
       unsubscribeRest();
       unsubscribeDrivers();
+      unsubscribeUserLocs();
     };
   }, []);
 
@@ -211,6 +236,18 @@ export default function Overview() {
       }
     });
 
+    // d. Render Live Users / App Installs (Purple pins)
+    userLocations.forEach(userLoc => {
+      if (userLoc.lat && userLoc.lng) {
+        const latLng = [parseFloat(userLoc.lat), parseFloat(userLoc.lng)];
+        bounds.push(latLng);
+        const name = userLoc.email ? userLoc.email.split('@')[0] : 'Guest';
+        L.marker(latLng, {
+          icon: createMarkerIcon('#9C27B0', `User: ${name}`)
+        }).addTo(markerLayer);
+      }
+    });
+
     // Auto zoom map to fit all markers if present
     if (bounds.length > 0) {
       try {
@@ -220,7 +257,7 @@ export default function Overview() {
       }
     }
 
-  }, [mapInstance, markerLayer, liveDrivers, restaurants, allOrders]);
+  }, [mapInstance, markerLayer, liveDrivers, restaurants, allOrders, userLocations]);
 
   const revenueData = [
     { label: 'Mon', value: metrics.profit * 0.12 },
@@ -328,7 +365,11 @@ export default function Overview() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#D32F2F' }} />
-                <span style={{ color: '#DDD' }}>User</span>
+                <span style={{ color: '#DDD' }}>Dropoff</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#9C27B0' }} />
+                <span style={{ color: '#DDD' }}>App Install</span>
               </div>
             </div>
           </div>

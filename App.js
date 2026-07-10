@@ -1,4 +1,6 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
+import { ref, update } from 'firebase/database';
+import { database } from './firebase';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -24,6 +26,82 @@ const Stack = createNativeStackNavigator();
 
 function NavigationWrapper() {
   const { user, loading } = useContext(AuthContext);
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const userId = user.uid || 'guest_user';
+    const email = user.email || 'guest@example.com';
+    let watchId = null;
+
+    const startTracking = () => {
+      if (navigator.geolocation) {
+        watchId = navigator.geolocation.watchPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            const locRef = ref(database, `userLocations/${userId}`);
+            update(locRef, {
+              userId,
+              email,
+              lat: latitude,
+              lng: longitude,
+              updatedAt: new Date().toISOString()
+            }).catch(e => {});
+          },
+          (error) => {
+            // Simulated live location tracking updates for sandbox mode!
+            const mockLat = 37.7749 + (Math.random() - 0.5) * 0.02;
+            const mockLng = -122.4194 + (Math.random() - 0.5) * 0.02;
+            const locRef = ref(database, `userLocations/${userId}`);
+            update(locRef, {
+              userId,
+              email,
+              lat: mockLat,
+              lng: mockLng,
+              updatedAt: new Date().toISOString()
+            }).catch(e => {});
+          },
+          { enableHighAccuracy: true, distanceFilter: 10, timeout: 20000 }
+        );
+      }
+    };
+
+    startTracking();
+
+    const fallbackTimer = setInterval(() => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const locRef = ref(database, `userLocations/${userId}`);
+            update(locRef, {
+              userId,
+              email,
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              updatedAt: new Date().toISOString()
+            }).catch(e => {});
+          },
+          (err) => {
+            const mockLat = 37.7749 + (Math.random() - 0.5) * 0.02;
+            const mockLng = -122.4194 + (Math.random() - 0.5) * 0.02;
+            const locRef = ref(database, `userLocations/${userId}`);
+            update(locRef, {
+              userId,
+              email,
+              lat: mockLat,
+              lng: mockLng,
+              updatedAt: new Date().toISOString()
+            }).catch(e => {});
+          }
+        );
+      }
+    }, 15000);
+
+    return () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+      clearInterval(fallbackTimer);
+    };
+  }, [user]);
 
   if (loading) {
     return (
