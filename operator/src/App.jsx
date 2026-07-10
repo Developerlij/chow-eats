@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { ref, onValue } from 'firebase/database';
+import { database } from './firebase';
 import { 
   LayoutDashboard, 
   Coffee, 
@@ -15,6 +17,26 @@ import GroceryManager from './screens/GroceryManager';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Overview');
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const ordersRef = ref(database, 'orders');
+    const unsubscribe = onValue(ordersRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const orderList = Object.keys(data).map(key => data[key]);
+        const count = orderList.filter(o => 
+          o.status === 'Pending' || 
+          o.status === 'Preparing' || 
+          o.status === 'Preparing Order'
+        ).length;
+        setPendingCount(count);
+      } else {
+        setPendingCount(0);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const navigationItems = [
     { name: 'Overview', icon: LayoutDashboard, component: Overview, label: 'Live Dispatch Map' },
@@ -55,7 +77,24 @@ export default function App() {
                 <span className="nav-icon">
                   <IconComponent size={20} />
                 </span>
-                {item.label}
+                <span className="nav-label-wrapper" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1 }}>
+                  <span>{item.label}</span>
+                  {item.name === 'Orders' && pendingCount > 0 && (
+                    <span className="number-ribbon" style={{ 
+                      backgroundColor: '#D32F2F', 
+                      color: '#FFFFFF', 
+                      fontSize: '10px', 
+                      fontWeight: 'extrabold', 
+                      borderRadius: '10px', 
+                      padding: '2px 7px', 
+                      marginLeft: '6px',
+                      display: 'inline-block',
+                      lineHeight: '1.2'
+                    }}>
+                      {pendingCount}
+                    </span>
+                  )}
+                </span>
               </button>
             );
           })}
