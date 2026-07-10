@@ -44,14 +44,7 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.userName}>{user?.email ? user.email.split('@')[0] : 'Guest User'}</Text>
           <Text style={styles.userEmail}>{user?.email || 'guest@example.com'}</Text>
 
-          {/* Interactive Wallet Balance Badge */}
-          <TouchableOpacity 
-            style={styles.walletBadge} 
-            onPress={() => navigation.navigate('Wallet')}
-          >
-            <Ionicons name="wallet" size={16} color="#06C167" style={{ marginRight: 6 }} />
-            <Text style={styles.walletBadgeText}>Wallet: ${walletBalance.toFixed(2)}</Text>
-          </TouchableOpacity>
+
           
           {isMock ? (
             <View style={styles.mockBadge}>
@@ -94,13 +87,7 @@ export default function ProfileScreen({ navigation }) {
             <Ionicons name="chevron-forward" size={16} color="#CCCCCC" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.optionRow} onPress={() => navigation.navigate('Wallet')}>
-            <View style={styles.optionIconContainer}>
-              <Ionicons name="wallet-outline" size={20} color="#06C167" />
-            </View>
-            <Text style={styles.optionText}>My Chow Wallet</Text>
-            <Ionicons name="chevron-forward" size={16} color="#CCCCCC" />
-          </TouchableOpacity>
+
         </View>
 
         {/* Log Out Option */}
