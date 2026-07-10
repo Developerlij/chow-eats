@@ -16,6 +16,16 @@ import { BasketContext } from '../context/BasketContext';
 import FooterNavbar from '../components/FooterNavbar';
 import { ref, onValue } from 'firebase/database';
 import { database, isMockFirebase } from '../../firebase';
+import * as Notifications from 'expo-notifications';
+
+// Configure standard notification display configuration for active foreground states
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 export default function DeliveryScreen() {
   const navigation = useNavigation();
@@ -94,6 +104,79 @@ export default function DeliveryScreen() {
       return () => clearInterval(interval);
     }
   }, [activeOrderId]);
+
+  // Helper to calculate estimated travel minutes from Haversine distance
+  const getRemainingTime = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c; // Distance in km
+    
+    // Assume average speed is 30km/h (0.5 km per min) + 2 min handoff padding
+    const mins = Math.round(distance / 0.5) + 2;
+    return Math.max(1, mins);
+  };
+
+  // Request notifications permissions on screen mount
+  useEffect(() => {
+    async function requestPermissions() {
+      if (Platform.OS !== 'web') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status !== 'granted') {
+          console.warn("Local notification permissions not granted by user.");
+        }
+      }
+    }
+    requestPermissions();
+  }, []);
+
+  // Monitor orderStatus and riderLocation changes to trigger/update notification bar details
+  useEffect(() => {
+    const isEnRoute = 
+      orderStatus === "Rider Picked Up Order" || 
+      orderStatus === "Rider is Nearby" || 
+      orderStatus === "Driver on the way" || 
+      orderStatus === "Picked Up";
+
+    if (isEnRoute && riderLocation && userCoords) {
+      const minsRemaining = getRemainingTime(
+        riderLocation.latitude, 
+        riderLocation.longitude, 
+        userCoords.latitude, 
+        userCoords.longitude
+      );
+
+      Notifications.scheduleNotificationAsync({
+        identifier: 'active-order-tracking',
+        content: {
+          title: orderStatus === "Rider is Nearby" ? "Rider is nearby! 🚴" : "Chow Eats: Rider en route! 🚴",
+          body: `Estimated arrival: ${minsRemaining} mins remaining.`,
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: null
+      }).catch(() => {});
+    } else if (orderStatus === "Order Delivered") {
+      // Dismiss active rider en-route progress notifications and push final alert
+      Notifications.dismissNotificationAsync('active-order-tracking').catch(() => {});
+      
+      Notifications.scheduleNotificationAsync({
+        identifier: 'order-delivered-alert',
+        content: {
+          title: "Order Delivered! 🎉",
+          body: "Your hot meal has arrived. Bon appétit!",
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: null
+      }).catch(() => {});
+    }
+  }, [orderStatus, riderLocation]);
 
   const handleCallRider = () => {
     Linking.openURL('tel:1234567890').catch((err) => {
