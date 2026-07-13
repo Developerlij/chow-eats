@@ -13,7 +13,8 @@ import {
   Ticket,
   Send,
   Activity,
-  DollarSign
+  DollarSign,
+  ShieldCheck
 } from 'lucide-react';
 
 // Import Screens
@@ -29,6 +30,7 @@ import DisputesManager from './screens/DisputesManager';
 import BroadcastHub from './screens/BroadcastHub';
 import SystemHealth from './screens/SystemHealth';
 import FinanceManager from './screens/FinanceManager';
+import AuditManager from './screens/AuditManager';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Overview');
@@ -56,6 +58,7 @@ export default function App() {
   const navigationItems = [
     { name: 'Overview', icon: LayoutDashboard, component: Overview, label: 'Dashboard' },
     { name: 'Finance', icon: DollarSign, component: FinanceManager, label: 'Financials' },
+    { name: 'Audit', icon: ShieldCheck, component: AuditManager, label: 'Audit Desk' },
     { name: 'Restaurants', icon: Store, component: Restaurants, label: 'Restaurants' },
     { name: 'Menu', icon: Coffee, component: MenuManager, label: 'Menu Manager' },
     { name: 'Orders', icon: ShoppingCart, component: OrdersManager, label: 'Live Orders' },
