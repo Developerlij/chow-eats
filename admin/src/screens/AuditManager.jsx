@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { database } from '../firebase';
-import { ref, onValue, set, update } from 'firebase/database';
-import { ShieldCheck, Users, Briefcase, Bike, ToggleLeft, ToggleRight, Radio, Search, Filter } from 'lucide-react';
+import { ref, onValue, update, set } from 'firebase/database';
+import { ShieldCheck, Users, Briefcase, Bike, ToggleLeft, ToggleRight, Radio, Search, ShieldAlert } from 'lucide-react';
 
 export default function AuditManager() {
   const [activeTab, setActiveTab] = useState('users'); // 'users', 'operators', 'drivers'
@@ -10,14 +10,7 @@ export default function AuditManager() {
   // Real database states
   const [usersList, setUsersList] = useState([]);
   const [driversList, setDriversList] = useState([]);
-  
-  // Static/Simulated operator list (since operators are cloned local web view users, we mock registration records for them)
-  const [operatorsList, setOperatorsList] = useState([
-    { id: 'op_01', name: 'Alex Rivera', role: 'Live Orders Manager', status: 'Active', scope: ['Live Orders', 'Disputes Desk'], lastActive: 'Just Now', ip: '192.168.1.104', actionsCount: 42 },
-    { id: 'op_02', name: 'Clara Oswald', role: 'Menu Coordinator', status: 'Active', scope: ['Menu Manager'], lastActive: '5 mins ago', ip: '192.168.1.112', actionsCount: 15 },
-    { id: 'op_03', name: 'Marcus Brody', role: 'Grocery Lead', status: 'Offline', scope: ['Grocery Manager'], lastActive: '2 hours ago', ip: '192.168.1.95', actionsCount: 89 },
-    { id: 'op_04', name: 'Selina Kyle', role: 'Night Dispatcher', status: 'Active', scope: ['Live Orders', 'Manage Drivers'], lastActive: 'Active 2m ago', ip: '192.168.1.48', actionsCount: 124 }
-  ]);
+  const [operatorsList, setOperatorsList] = useState([]);
 
   useEffect(() => {
     // 1. Fetch Users from Firebase
@@ -46,9 +39,32 @@ export default function AuditManager() {
       }
     });
 
+    // 3. Fetch Operators from Firebase with Auto-Seeding
+    const operatorsRef = ref(database, 'operators');
+    const unsubscribeOperators = onValue(operatorsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+        setOperatorsList(list);
+      } else {
+        // Auto-seed default operators if node doesn't exist
+        const seedOperators = {
+          op_01: { id: 'op_01', name: 'Alex Rivera', role: 'Live Orders Manager', status: 'Active', ip: '192.168.1.104', permissions: { Overview: true, Menu: true, Grocery: false, Orders: true } },
+          op_02: { id: 'op_02', name: 'Clara Oswald', role: 'Menu Coordinator', status: 'Active', ip: '192.168.1.112', permissions: { Overview: false, Menu: true, Grocery: false, Orders: false } },
+          op_03: { id: 'op_03', name: 'Marcus Brody', role: 'Grocery Lead', status: 'Offline', ip: '192.168.1.95', permissions: { Overview: false, Menu: false, Grocery: true, Orders: false } },
+          op_04: { id: 'op_04', name: 'Selina Kyle', role: 'Night Dispatcher', status: 'Active', ip: '192.168.1.48', permissions: { Overview: true, Menu: false, Grocery: false, Orders: true } }
+        };
+        set(operatorsRef, seedOperators);
+      }
+    });
+
     return () => {
       unsubscribeUsers();
       unsubscribeDrivers();
+      unsubscribeOperators();
     };
   }, []);
 
@@ -72,17 +88,23 @@ export default function AuditManager() {
   };
 
   // Action: Toggle operator active status
-  const toggleOperatorStatus = (opId) => {
-    setOperatorsList(prev => prev.map(op => {
-      if (op.id === opId) {
-        return {
-          ...op,
-          status: op.status === 'Active' ? 'Offline' : 'Active',
-          lastActive: op.status === 'Active' ? 'Suspended' : 'Just Now'
-        };
-      }
-      return op;
-    }));
+  const toggleOperatorStatus = async (opId, currentStatus) => {
+    try {
+      const nextStatus = currentStatus === 'Active' ? 'Offline' : 'Active';
+      await update(ref(database, `operators/${opId}`), { status: nextStatus });
+    } catch (e) {
+      alert("Failed to toggle operator status: " + e.message);
+    }
+  };
+
+  // Action: Toggle operator module permission checkbox
+  const toggleOperatorPermission = async (opId, moduleKey, currentVal) => {
+    try {
+      const valRef = ref(database, `operators/${opId}/permissions/${moduleKey}`);
+      await set(valRef, !currentVal);
+    } catch (e) {
+      console.error("Failed to update permission:", e);
+    }
   };
 
   // Filters search inputs
@@ -116,7 +138,7 @@ export default function AuditManager() {
       
       {/* Overview stats header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: '14px', color: '#888' }}>Perform real-time profile verification, security bans, and permission audits.</span>
+        <span style={{ fontSize: '14px', color: '#888' }}>Perform real-time profile verification, security bans, and operator permission scope audits.</span>
       </div>
 
       {/* Metrics Summary cards */}
@@ -282,49 +304,79 @@ export default function AuditManager() {
                 <tr>
                   <th>Operator Name</th>
                   <th>Assigned Role</th>
-                  <th>Module Permissions</th>
-                  <th>Login IP Address</th>
-                  <th>Last Sync Activity</th>
+                  <th>Module Permissions (Manage & Authorize Scope)</th>
+                  <th>Login IP</th>
                   <th>Terminal Status</th>
                   <th style={{ textAlign: 'right' }}>Scope Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredItems.length > 0 ? (
-                  filteredItems.map((op) => (
-                    <tr key={op.id}>
-                      <td style={{ fontWeight: 'bold' }}>🔑 {op.name}</td>
-                      <td style={{ color: '#888', fontWeight: '500' }}>{op.role}</td>
-                      <td>
-                        {op.scope.map((s, i) => (
-                          <span key={i} style={{ display: 'inline-block', backgroundColor: '#333', color: '#EEE', padding: '2px 6px', borderRadius: '4px', margin: '2px', fontSize: '11px' }}>
-                            {s}
+                  filteredItems.map((op) => {
+                    const perms = op.permissions || {};
+                    return (
+                      <tr key={op.id}>
+                        <td style={{ fontWeight: 'bold' }}>🔑 {op.name}</td>
+                        <td style={{ color: '#888', fontWeight: '500' }}>{op.role}</td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '4px 0' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={!!perms.Overview} 
+                                onChange={() => toggleOperatorPermission(op.id, 'Overview', !!perms.Overview)}
+                              />
+                              <span>Live Dispatch Map (Overview)</span>
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={!!perms.Menu} 
+                                onChange={() => toggleOperatorPermission(op.id, 'Menu', !!perms.Menu)}
+                              />
+                              <span>Food Manager (Menu)</span>
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={!!perms.Grocery} 
+                                onChange={() => toggleOperatorPermission(op.id, 'Grocery', !!perms.Grocery)}
+                              />
+                              <span>Product Update (Grocery)</span>
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={!!perms.Orders} 
+                                onChange={() => toggleOperatorPermission(op.id, 'Orders', !!perms.Orders)}
+                              />
+                              <span>Live Orders (Orders)</span>
+                            </label>
+                          </div>
+                        </td>
+                        <td><code style={{ fontSize: '12px' }}>{op.ip}</code></td>
+                        <td>
+                          <span className={`status-badge ${op.status === 'Active' ? 'delivered' : 'pickup'}`}>
+                            {op.status}
                           </span>
-                        ))}
-                      </td>
-                      <td><code style={{ fontSize: '12px' }}>{op.ip}</code></td>
-                      <td>{op.lastActive}</td>
-                      <td>
-                        <span className={`status-badge ${op.status === 'Active' ? 'delivered' : 'pickup'}`}>
-                          {op.status}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <button 
-                          className="action-btn-small"
-                          style={{ 
-                            backgroundColor: op.status === 'Active' ? '#D32F2F' : '#388E3C', 
-                            borderColor: op.status === 'Active' ? '#D32F2F' : '#388E3C',
-                            color: '#FFF',
-                            padding: '4px 10px'
-                          }}
-                          onClick={() => toggleOperatorStatus(op.id)}
-                        >
-                          {op.status === 'Active' ? 'Disconnect' : 'Connect'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <button 
+                            className="action-btn-small"
+                            style={{ 
+                              backgroundColor: op.status === 'Active' ? '#D32F2F' : '#388E3C', 
+                              borderColor: op.status === 'Active' ? '#D32F2F' : '#388E3C',
+                              color: '#FFF',
+                              padding: '4px 10px'
+                            }}
+                            onClick={() => toggleOperatorStatus(op.id, op.status)}
+                          >
+                            {op.status === 'Active' ? 'Disconnect' : 'Connect'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
                     <td colSpan="7" style={{ textAlign: 'center', color: '#999', padding: '24px' }}>
