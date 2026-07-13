@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { database } from '../firebase';
 import { ref, onValue } from 'firebase/database';
-import { TrendingUp, ShoppingBag, Store, Users } from 'lucide-react';
+import { TrendingUp, ShoppingBag, Store, Users, Key } from 'lucide-react';
 
 export default function Overview() {
   const [metrics, setMetrics] = useState({
@@ -17,9 +17,17 @@ export default function Overview() {
   const [restaurants, setRestaurants] = useState([]);
   const [userLocations, setUserLocations] = useState([]);
 
-  // Leaflet Map States
+  // Mapbox GL JS States and Refs
   const [mapInstance, setMapInstance] = useState(null);
-  const [markerLayer, setMarkerLayer] = useState(null);
+  const [mapStyleLoaded, setMapStyleLoaded] = useState(false);
+  const markersRef = useRef([]);
+  
+  // Developer Access Token Storage (Saves to localStorage so the user can easily paste their Mapbox Token)
+  const [mapboxToken, setMapboxToken] = useState(
+    localStorage.getItem('mapbox_access_token') || 'pk.eyJ1IjoiZGV2ZWxvcGVybGlqIiwiYSI6ImNsd3k4eTR6MDBnbjcycW81MzdzamI4dzMifQ.YourDefaultMockTokenOrActual'
+  );
+  const [tokenInputOpen, setTokenInputOpen] = useState(false);
+  const [tempTokenInput, setTempTokenInput] = useState('');
 
   // 1. Fetch live metrics and coordinates from Firebase Realtime Database
   useEffect(() => {
@@ -107,157 +115,266 @@ export default function Overview() {
     };
   }, []);
 
-  // 2. Initialize Leaflet Map once
+  // 2. Initialize Mapbox Map when token changes
   useEffect(() => {
-    if (typeof window === 'undefined' || typeof L === 'undefined') return;
+    if (typeof window === 'undefined' || typeof mapboxgl === 'undefined') return;
 
-    // Check if map element already initialized to prevent errors
-    const container = L.DomUtil.get('live-dispatch-leaflet-map');
-    if (container && container._leaflet_id) {
-      return;
+    // Set Mapbox token
+    mapboxgl.accessToken = mapboxToken;
+
+    const container = document.getElementById('live-dispatch-mapbox');
+    if (!container) return;
+
+    // Clear previous Mapbox canvas inside container to prevent WebGL context conflicts
+    container.innerHTML = '';
+
+    let map;
+    try {
+      map = new mapboxgl.Map({
+        container: 'live-dispatch-mapbox',
+        style: 'mapbox://styles/mapbox/dark-v11', // Dark Theme matching premium dashboard
+        center: [-122.4194, 37.7749], // San Francisco [lng, lat]
+        zoom: 12,
+        attributionControl: false
+      });
+
+      // Add navigation controls
+      map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right');
+      
+      map.on('style.load', () => {
+        setMapStyleLoaded(true);
+      });
+      
+      setMapInstance(map);
+    } catch (e) {
+      console.error("Failed to initialize Mapbox GL JS map:", e);
+      container.innerHTML = `
+        <div style="color: #FF5252; padding: 24px; text-align: center; font-size: 13.5px; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #1C1C1C;">
+          <strong style="margin-bottom: 8px;">Mapbox Access Token Error</strong>
+          <span style="color: #999; margin-bottom: 16px;">Please set a valid Mapbox API key in the credentials input overlay below.</span>
+        </div>
+      `;
     }
 
-    // Centered in a default coordinate (e.g. San Francisco Bay Area coords or dynamic average)
-    const map = L.map('live-dispatch-leaflet-map', {
-      zoomControl: true,
-      attributionControl: false
-    }).setView([37.7749, -122.4194], 13);
-
-    // Premium Dark Theme maps layers matching admin aesthetic
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20
-    }).addTo(map);
-
-    const layerGroup = L.layerGroup().addTo(map);
-    
-    setMapInstance(map);
-    setMarkerLayer(layerGroup);
-
     return () => {
-      map.remove();
+      if (map) map.remove();
+      setMapStyleLoaded(false);
     };
-  }, []);
+  }, [mapboxToken]);
 
-  // 3. Update markers and paths on the live Leaflet map
+  // 3. Render and update Mapbox Pin markers and Route Polylines dynamically
   useEffect(() => {
-    if (!mapInstance || !markerLayer || typeof L === 'undefined') return;
+    if (!mapInstance || typeof mapboxgl === 'undefined') return;
 
-    // Clear previous markers & polylines
-    markerLayer.clearLayers();
-
-    // Helper to build a premium HTML marker pin representation
-    const createMarkerIcon = (color, title, iconName) => {
-      return L.divIcon({
-        className: 'custom-leaflet-marker',
-        html: `
-          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="background-color: ${color}; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #FFF; box-shadow: 0 2px 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; animation: pulse 2s infinite;">
-              <div style="background-color: #FFF; width: 4px; height: 4px; border-radius: 50%;"></div>
-            </div>
-            <div style="background: rgba(26,26,26,0.9); border: 1px solid #444; color: #FFF; font-size: 8.5px; font-weight: bold; padding: 2px 5px; border-radius: 3px; white-space: nowrap; margin-top: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
-              ${title}
-            </div>
-          </div>
-        `,
-        iconSize: [60, 40],
-        iconAnchor: [30, 7]
-      });
+    // Helper to generate a custom colored pin marker element
+    const createMarkerElement = (color, label) => {
+      const el = document.createElement('div');
+      el.className = 'custom-mapbox-marker-container';
+      el.style.display = 'flex';
+      el.style.flexDirection = 'column';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'center';
+      el.innerHTML = `
+        <div style="background-color: ${color}; width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;">
+          <div style="background-color: #FFFFFF; width: 4px; height: 4px; border-radius: 50%;"></div>
+        </div>
+        <div style="background: rgba(26,26,26,0.95); border: 1px solid #444; color: #FFFFFF; font-size: 8.5px; font-weight: bold; padding: 2px 5px; border-radius: 3px; white-space: nowrap; margin-top: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
+          ${label}
+        </div>
+      `;
+      return el;
     };
 
-    // Keep bounds to fit all elements dynamically
-    const bounds = [];
+    // Remove old pin markers from map
+    markersRef.current.forEach(marker => marker.remove());
+    markersRef.current = [];
+
+    const bounds = new mapboxgl.LngLatBounds();
+    let hasCoords = false;
 
     // a. Render Restaurants (Green pins)
     restaurants.forEach(rest => {
       if (rest.lat && rest.lng) {
-        const latLng = [parseFloat(rest.lat), parseFloat(rest.lng)];
-        bounds.push(latLng);
-        L.marker(latLng, {
-          icon: createMarkerIcon('#06C167', rest.name)
-        }).addTo(markerLayer);
+        const lngLat = [parseFloat(rest.lng), parseFloat(rest.lat)];
+        bounds.extend(lngLat);
+        hasCoords = true;
+
+        const marker = new mapboxgl.Marker({
+          element: createMarkerElement('#06C167', rest.name)
+        })
+        .setLngLat(lngLat)
+        .addTo(mapInstance);
+
+        markersRef.current.push(marker);
       }
     });
 
     // b. Render Drivers (Idle: Orange / Active: Blue)
     liveDrivers.filter(d => d.lat && d.lng).forEach(driver => {
-      const latLng = [parseFloat(driver.lat), parseFloat(driver.lng)];
-      bounds.push(latLng);
+      const lngLat = [parseFloat(driver.lng), parseFloat(driver.lat)];
+      bounds.extend(lngLat);
+      hasCoords = true;
+
       const isTrip = driver.tripStatus === 'On Trip';
-      L.marker(latLng, {
-        icon: createMarkerIcon(isTrip ? '#0288D1' : '#F57C00', `Rider: ${driver.name.split(' ')[0]}`)
-      }).addTo(markerLayer);
+      const marker = new mapboxgl.Marker({
+        element: createMarkerElement(isTrip ? '#0288D1' : '#F57C00', `Rider: ${driver.name.split(' ')[0]}`)
+      })
+      .setLngLat(lngLat)
+      .addTo(mapInstance);
+
+      markersRef.current.push(marker);
     });
 
-    // c. Render Active Customers & Routing Lines
+    // c. Render Active Customers & Polylines
     const activeOrders = allOrders.filter(o => o.status && o.status !== 'Order Delivered' && o.status !== 'Refunded');
+    
+    // Construct route path lines
+    const restToRiderLines = [];
+    const riderToCustLines = [];
+    const directLines = [];
+
     activeOrders.forEach(order => {
       const restLat = parseFloat(order.restaurant?.lat) || 37.7749;
       const restLng = parseFloat(order.restaurant?.lng) || -122.4194;
       const custLat = parseFloat(order.dropoffLat) || (restLat - 0.015);
       const custLng = parseFloat(order.dropoffLng) || (restLng + 0.015);
-      const custLatLng = [custLat, custLng];
-      const restLatLng = [restLat, restLng];
 
-      bounds.push(custLatLng);
+      const restLngLat = [restLng, restLat];
+      const custLngLat = [custLng, custLat];
+
+      bounds.extend(custLngLat);
+      hasCoords = true;
 
       // Customer Pin
       const nameLabel = order.userEmail ? order.userEmail.split('@')[0] : 'Guest';
-      L.marker(custLatLng, {
-        icon: createMarkerIcon('#D32F2F', `Cust: ${nameLabel}`)
-      }).addTo(markerLayer);
+      const marker = new mapboxgl.Marker({
+        element: createMarkerElement('#D32F2F', `Cust: ${nameLabel}`)
+      })
+      .setLngLat(custLngLat)
+      .addTo(mapInstance);
 
-      // Routing Paths
+      markersRef.current.push(marker);
+
+      // Polyline Routing Coordinate Collections
       const assignedRider = liveDrivers.find(d => d.name === order.rider?.name);
       if (assignedRider && assignedRider.lat && assignedRider.lng) {
-        const riderLatLng = [parseFloat(assignedRider.lat), parseFloat(assignedRider.lng)];
+        const riderLngLat = [parseFloat(assignedRider.lng), parseFloat(assignedRider.lat)];
         
-        // Restaurant to Rider (Green dotted)
-        L.polyline([restLatLng, riderLatLng], {
-          color: '#06C167',
-          weight: 2,
-          dashArray: '4, 4',
-          opacity: 0.6
-        }).addTo(markerLayer);
+        restToRiderLines.push({
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates: [restLngLat, riderLngLat]
+          }
+        });
 
-        // Rider to Customer (Blue solid line)
-        L.polyline([riderLatLng, custLatLng], {
-          color: '#0288D1',
-          weight: 2.5,
-          opacity: 0.8
-        }).addTo(markerLayer);
+        riderToCustLines.push({
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates: [riderLngLat, custLngLat]
+          }
+        });
       } else {
-        // Direct default path
-        L.polyline([restLatLng, custLatLng], {
-          color: '#888888',
-          weight: 1.5,
-          dashArray: '2, 5',
-          opacity: 0.5
-        }).addTo(markerLayer);
+        directLines.push({
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates: [restLngLat, custLngLat]
+          }
+        });
       }
     });
 
-    // d. Render Live Users / App Installs (Purple pins)
+    // d. Render Live App Installs (Purple pins)
     userLocations.forEach(userLoc => {
       if (userLoc.lat && userLoc.lng) {
-        const latLng = [parseFloat(userLoc.lat), parseFloat(userLoc.lng)];
-        bounds.push(latLng);
+        const lngLat = [parseFloat(userLoc.lng), parseFloat(userLoc.lat)];
+        bounds.extend(lngLat);
+        hasCoords = true;
+
         const name = userLoc.email ? userLoc.email.split('@')[0] : 'Guest';
-        L.marker(latLng, {
-          icon: createMarkerIcon('#9C27B0', `User: ${name}`)
-        }).addTo(markerLayer);
+        const marker = new mapboxgl.Marker({
+          element: createMarkerElement('#9C27B0', `User: ${name}`)
+        })
+        .setLngLat(lngLat)
+        .addTo(mapInstance);
+
+        markersRef.current.push(marker);
       }
     });
 
-    // Auto zoom map to fit all markers if present
-    if (bounds.length > 0) {
+    // Fit Map to coordinates
+    if (hasCoords) {
       try {
-        mapInstance.fitBounds(bounds, { padding: [30, 30] });
-      } catch (err) {
-        console.warn("Fitbounds error:", err);
-      }
+        mapInstance.fitBounds(bounds, { padding: 50, maxZoom: 14, duration: 1500 });
+      } catch (err) {}
     }
 
-  }, [mapInstance, markerLayer, liveDrivers, restaurants, allOrders, userLocations]);
+    // Function to render geoJSON route polylines safely in Mapbox style layers
+    const updateMapboxPolylines = () => {
+      if (!mapInstance.isStyleLoaded() || !mapStyleLoaded) return;
+
+      const layers = [
+        { id: 'route-rest-rider', data: restToRiderLines, color: '#06C167', dash: [3, 3] },
+        { id: 'route-rider-cust', data: riderToCustLines, color: '#0288D1', dash: null },
+        { id: 'route-direct', data: directLines, color: '#888888', dash: [1, 3] }
+      ];
+
+      layers.forEach(layer => {
+        // Clear existing layer & source
+        if (mapInstance.getLayer(layer.id)) mapInstance.removeLayer(layer.id);
+        if (mapInstance.getSource(layer.id)) mapInstance.removeSource(layer.id);
+
+        if (layer.data.length > 0) {
+          mapInstance.addSource(layer.id, {
+            type: 'geojson',
+            data: {
+              type: 'FeatureCollection',
+              features: layer.data
+            }
+          });
+
+          const paintStyle = {
+            'line-color': layer.color,
+            'line-width': 2.5,
+            'line-opacity': 0.8
+          };
+
+          if (layer.dash) {
+            paintStyle['line-dasharray'] = layer.dash;
+          }
+
+          mapInstance.addLayer({
+            id: layer.id,
+            type: 'line',
+            source: layer.id,
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round'
+            },
+            paint: paintStyle
+          });
+        }
+      });
+    };
+
+    if (mapStyleLoaded) {
+      updateMapboxPolylines();
+    } else {
+      mapInstance.on('style.load', updateMapboxPolylines);
+    }
+
+  }, [mapInstance, mapStyleLoaded, liveDrivers, restaurants, allOrders, userLocations]);
+
+  // Handlers for Custom Mapbox token updates
+  const saveMapboxToken = () => {
+    if (tempTokenInput.trim()) {
+      localStorage.setItem('mapbox_access_token', tempTokenInput.trim());
+      setMapboxToken(tempTokenInput.trim());
+      setTokenInputOpen(false);
+    }
+  };
 
   const revenueData = [
     { label: 'Mon', value: metrics.profit * 0.12 },
@@ -335,19 +452,57 @@ export default function Overview() {
           </div>
         </div>
 
-        {/* Live Leaflet Dispatch Map */}
+        {/* Live Mapbox Dispatch Map */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="card-title" style={{ justifyContent: 'space-between', display: 'flex', alignItems: 'center' }}>
             <span>Live Dispatch Map (God-View)</span>
-            <span style={{ fontSize: '11px', color: '#06C167', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '6px', height: '6px', backgroundColor: '#06C167', borderRadius: '50%', display: 'inline-block' }} />
-              Live Map Sync
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button 
+                onClick={() => setTokenInputOpen(!tokenInputOpen)}
+                style={{ 
+                  background: '#2B2B2B', 
+                  border: '1px solid #444', 
+                  color: '#FFF', 
+                  borderRadius: '4px', 
+                  padding: '3px 8px', 
+                  fontSize: '10.5px', 
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <Key size={12} color="#06C167" />
+                Mapbox Token
+              </button>
+              <span style={{ fontSize: '11px', color: '#06C167', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '6px', height: '6px', backgroundColor: '#06C167', borderRadius: '50%', display: 'inline-block' }} />
+                Mapbox Sync
+              </span>
+            </div>
           </div>
 
           <div style={{ flex: 1, position: 'relative', minHeight: '260px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #333' }}>
-            {/* Target Leaflet container */}
-            <div id="live-dispatch-leaflet-map" style={{ width: '100%', height: '100%', minHeight: '260px', backgroundColor: '#1E1E1E' }} />
+            {/* Mapbox Canvas target */}
+            <div id="live-dispatch-mapbox" style={{ width: '100%', height: '100%', minHeight: '260px', backgroundColor: '#1C1C1C' }} />
+
+            {/* Token entry overlay */}
+            {tokenInputOpen && (
+              <div style={{ position: 'absolute', top: '10px', left: '10px', right: '10px', backgroundColor: 'rgba(26,26,26,0.95)', border: '1px solid #444', padding: '10px', borderRadius: '6px', zIndex: 2000 }}>
+                <div style={{ fontSize: '11px', color: '#FFF', fontWeight: 'bold', marginBottom: '6px' }}>Enter Mapbox Access Token:</div>
+                <input 
+                  type="text" 
+                  placeholder="pk.eyJ1..."
+                  value={tempTokenInput}
+                  onChange={(e) => setTempTokenInput(e.target.value)}
+                  style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #555', background: '#222', color: '#FFF', fontSize: '10px', marginBottom: '8px' }}
+                />
+                <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setTokenInputOpen(false)} style={{ background: 'transparent', border: 'none', color: '#AAA', fontSize: '10px', cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={saveMapboxToken} style={{ background: '#06C167', border: 'none', color: '#FFF', padding: '3px 8px', borderRadius: '3px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>Save Token</button>
+                </div>
+              </div>
+            )}
 
             {/* Map Legend overlay */}
             <div style={{ position: 'absolute', bottom: '10px', left: '10px', backgroundColor: 'rgba(26,26,26,0.9)', padding: '6px 10px', borderRadius: '6px', display: 'flex', gap: '10px', fontSize: '9.5px', border: '1px solid #444', zIndex: 1000 }}>
