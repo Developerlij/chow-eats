@@ -17,11 +17,12 @@ import { database } from '../../firebase';
 export default function ProfileScreen({ navigation }) {
   const { user, logout, isMock } = useContext(AuthContext);
   const [walletBalance, setWalletBalance] = useState(0.00);
+  const [subscriptionPlan, setSubscriptionPlan] = useState('Pay as you use');
 
   useEffect(() => {
     const userId = user?.uid || 'guest_user';
     const balanceRef = ref(database, `users/${userId}/wallet/balance`);
-    const unsubscribe = onValue(balanceRef, (snapshot) => {
+    const unsubscribeBalance = onValue(balanceRef, (snapshot) => {
       const val = snapshot.val();
       if (typeof val === 'number') {
         setWalletBalance(val);
@@ -29,7 +30,21 @@ export default function ProfileScreen({ navigation }) {
         setWalletBalance(0.00);
       }
     });
-    return () => unsubscribe();
+
+    const planRef = ref(database, `users/${userId}/subscriptionPlan`);
+    const unsubscribePlan = onValue(planRef, (snapshot) => {
+      const plan = snapshot.val();
+      if (plan) {
+        setSubscriptionPlan(plan);
+      } else {
+        setSubscriptionPlan('Pay as you use');
+      }
+    });
+
+    return () => {
+      unsubscribeBalance();
+      unsubscribePlan();
+    };
   }, [user]);
 
   return (
@@ -85,6 +100,17 @@ export default function ProfileScreen({ navigation }) {
             </View>
             <Text style={styles.optionText}>Notifications</Text>
             <Ionicons name="chevron-forward" size={16} color="#CCCCCC" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.optionRow} onPress={() => navigation.navigate('Subscription')}>
+            <View style={styles.optionIconContainer}>
+              <Ionicons name="ribbon-outline" size={20} color="#06C167" />
+            </View>
+            <Text style={styles.optionText}>Subscription Plan</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 13, color: '#666666', fontWeight: '500' }}>{subscriptionPlan}</Text>
+              <Ionicons name="chevron-forward" size={16} color="#CCCCCC" />
+            </View>
           </TouchableOpacity>
 
 

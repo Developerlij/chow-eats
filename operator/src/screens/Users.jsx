@@ -24,6 +24,7 @@ export default function Users() {
         customerMap[emailKey] = {
           identifier: emailKey,
           joinedAt: u.joinedAt || new Date().toISOString(),
+          subscription: u.subscriptionPlan || 'Pay as you use',
           ordersCount: 0,
           totalSpent: 0,
           purchasedItems: [],
@@ -40,6 +41,7 @@ export default function Users() {
           customerMap[emailKey] = {
             identifier: emailKey,
             joinedAt: order.createdAt || new Date().toISOString(),
+            subscription: 'Pay as you use',
             ordersCount: 0,
             totalSpent: 0,
             purchasedItems: [],
@@ -115,6 +117,7 @@ export default function Users() {
             <tr>
               <th>Customer Identifier</th>
               <th>Date Joined</th>
+              <th>Subscription Plan</th>
               <th>Orders Count</th>
               <th>Lifetime Spend</th>
               <th>Purchased Food Items</th>
@@ -128,6 +131,20 @@ export default function Users() {
                   <td style={{ fontWeight: 'bold', color: '#1A1A1A' }}>👤 {cust.identifier}</td>
                   <td style={{ fontSize: '13px', color: '#666' }}>
                     {cust.joinedAt ? new Date(cust.joinedAt).toLocaleDateString() : '—'}
+                  </td>
+                  <td>
+                    <span className="status-badge" style={{ 
+                      backgroundColor: cust.subscription === 'Monthly Subscription' ? '#E8F5E9' : cust.subscription === 'Yearly Subscription' ? '#F3E5F5' : '#F5F5F5',
+                      color: cust.subscription === 'Monthly Subscription' ? '#06C167' : cust.subscription === 'Yearly Subscription' ? '#9C27B0' : '#666',
+                      borderColor: 'transparent',
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      display: 'inline-block'
+                    }}>
+                      {cust.subscription}
+                    </span>
                   </td>
                   <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
                     <span style={{ padding: '4px 10px', backgroundColor: '#F0F9F4', color: '#06C167', borderRadius: '12px', fontSize: '12px' }}>
@@ -155,7 +172,7 @@ export default function Users() {
               ))
             ) : (
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', color: '#999', padding: '32px' }}>
+                <td colSpan="7" style={{ textAlign: 'center', color: '#999', padding: '32px' }}>
                   No customer registrations or orders found in database yet.
                 </td>
               </tr>
