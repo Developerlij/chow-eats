@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { database, storage, auth } from './firebase';
-import { ref, onValue, set, update, remove } from 'firebase/database';
-import { 
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signOut
-} from 'firebase/auth';
+import { database, storage } from './firebase';
+import { ref, onValue, set, update, remove, get, child } from 'firebase/database';
 import { 
   Store, 
   PlusCircle, 
@@ -27,7 +21,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  // Auth state
+  // Auth state (Database-driven to prevent auth/configuration-not-found errors)
   const [user, setUser] = useState(null);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -62,16 +56,16 @@ export default function App() {
   const [restUploadProgress, setRestUploadProgress] = useState('');
   const [dishUploadProgress, setDishUploadProgress] = useState('');
 
-  // 1. Listen to Authentication State Changes
+  // 1. Restore local session on boot
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      if (!currentUser) {
-        setSelectedRest(null);
-        setRestaurants([]);
+    const savedSession = localStorage.getItem('chow_merchant_session');
+    if (savedSession) {
+      try {
+        setUser(JSON.parse(savedSession));
+      } catch (e) {
+        console.warn("Failed to parse saved session:", e);
       }
-    });
-    return () => unsubscribe();
+    }
   }, []);
 
   // 2. Fetch restaurants from Firebase and filter for logged-in merchant's store
@@ -89,7 +83,7 @@ export default function App() {
         }));
         
         // Find the store belonging to this specific user (restricted to exactly ONE)
-        const myStore = list.find(r => r.ownerId === user.uid);
+        const myStore = list.find(r => r.ownerId === user.id);
         setSelectedRest(myStore || null);
         setRestaurants(list);
       } else {
@@ -124,22 +118,61 @@ export default function App() {
     return () => unsubscribe();
   }, [selectedRest]);
 
-  // Handle Auth submission
+  // Handle Auth submission using Database-driven accounts node
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
+    if (!authEmail || !authPassword) return;
+
     setAuthError('');
     setAuthLoading(true);
 
     try {
+      const dbRef = ref(database);
+      const accountsSnapshot = await get(child(dbRef, 'merchantAccounts'));
+      const accounts = accountsSnapshot.val() || {};
+
       if (isRegistering) {
-        await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+        // Registration Flow
+        const emailTaken = Object.values(accounts).some(
+          acc => acc.email.toLowerCase() === authEmail.toLowerCase()
+        );
+        if (emailTaken) {
+          setAuthError("This email address is already registered.");
+          setAuthLoading(false);
+          return;
+        }
+
+        const newId = 'merchant_' + Math.random().toString(36).substring(2, 9);
+        const newAccount = {
+          id: newId,
+          email: authEmail.toLowerCase(),
+          password: authPassword // Plain text for local environment compatibility
+        };
+
+        await set(ref(database, `merchantAccounts/${newId}`), newAccount);
+        
+        localStorage.setItem('chow_merchant_session', JSON.stringify(newAccount));
+        setUser(newAccount);
       } else {
-        await signInWithEmailAndPassword(auth, authEmail, authPassword);
+        // Sign In Flow
+        const matchedAccount = Object.values(accounts).find(
+          acc => acc.email.toLowerCase() === authEmail.toLowerCase() && acc.password === authPassword
+        );
+
+        if (!matchedAccount) {
+          setAuthError("Invalid email or password.");
+          setAuthLoading(false);
+          return;
+        }
+
+        localStorage.setItem('chow_merchant_session', JSON.stringify(matchedAccount));
+        setUser(matchedAccount);
       }
+
       setAuthEmail('');
       setAuthPassword('');
     } catch (err) {
-      setAuthError(err.message);
+      setAuthError("Authentication failed: " + err.message);
     } finally {
       setAuthLoading(false);
     }
@@ -149,32 +182,30 @@ export default function App() {
   const handleSandboxBypass = async () => {
     setAuthError('');
     setAuthLoading(true);
-    const sandboxEmail = 'sandbox_merchant@chow.com';
-    const sandboxPassword = 'chowmerchant123';
+    const sandboxId = 'merchant_sandbox';
+    const sandboxAccount = {
+      id: sandboxId,
+      email: 'sandbox_merchant@chow.com',
+      password: 'chowmerchant123'
+    };
 
     try {
-      await signInWithEmailAndPassword(auth, sandboxEmail, sandboxPassword);
+      // Seed sandbox account profile into database
+      await set(ref(database, `merchantAccounts/${sandboxId}`), sandboxAccount);
+      
+      // Save session locally
+      localStorage.setItem('chow_merchant_session', JSON.stringify(sandboxAccount));
+      setUser(sandboxAccount);
     } catch (err) {
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-        try {
-          await createUserWithEmailAndPassword(auth, sandboxEmail, sandboxPassword);
-        } catch (regErr) {
-          setAuthError("Failed to register sandbox account: " + regErr.message);
-        }
-      } else {
-        setAuthError(err.message);
-      }
+      setAuthError("Sandbox login failed: " + err.message);
     } finally {
       setAuthLoading(false);
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (err) {
-      alert("Sign out failed: " + err.message);
-    }
+  const handleLogout = () => {
+    localStorage.removeItem('chow_merchant_session');
+    setUser(null);
   };
 
   const handleAutoDetectLocation = () => {
@@ -247,7 +278,7 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
-  // Create Merchant Restaurant Profile (Only 1 allowed, links to ownerId: user.uid)
+  // Create Merchant Restaurant Profile (Only 1 allowed, links to ownerId: user.id)
   const handleCreateRestaurant = async (e) => {
     e.preventDefault();
     if (!restName || !restAddress || !restImage) {
@@ -271,7 +302,7 @@ export default function App() {
       lng: parseFloat(restLng) || -122.4194,
       verified: false,
       status: 'Pending Verification',
-      ownerId: user.uid // Bound exclusively to this merchant account!
+      ownerId: user.id // Bound exclusively to this merchant account!
     };
 
     try {
