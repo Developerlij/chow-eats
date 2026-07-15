@@ -348,20 +348,45 @@ export default function App() {
     if (!driverProfile || !activeOrder || isSimulating) return;
 
     setIsSimulating(true);
-    const startLat = activeOrder.restaurant?.lat || 37.7882;
-    const startLng = activeOrder.restaurant?.lng || -122.4324;
-    const endLat = 37.7749;
-    const endLng = -122.4194;
+    const storeLat = activeOrder.restaurant?.lat || 37.7882;
+    const storeLng = activeOrder.restaurant?.lng || -122.4324;
+    
+    // Spawn driver 1.2km away from the store initially
+    const initialRiderLat = storeLat + 0.008;
+    const initialRiderLng = storeLng - 0.008;
+
+    const userLat = 37.7749;
+    const userLng = -122.4194;
 
     let step = 0;
-    const totalSteps = 20;
+    const totalSteps = 25; // 10 steps to store, 12 steps to user, 3 steps nearby buffer
 
     const interval = setInterval(async () => {
       step += 1;
       setSimProgress(step);
-      const fraction = step / totalSteps;
-      const currentLat = startLat + (endLat - startLat) * fraction;
-      const currentLng = startLng + (endLng - startLng) * fraction;
+
+      let currentLat, currentLng;
+      
+      if (step <= 10) {
+        // Phase 1: Driver heading to store
+        const fraction = step / 10;
+        currentLat = initialRiderLat + (storeLat - initialRiderLat) * fraction;
+        currentLng = initialRiderLng + (storeLng - initialRiderLng) * fraction;
+        
+        await update(ref(database, `orders/${activeOrder.id}`), { status: 'Preparing Order' });
+      } else if (step <= 22) {
+        // Phase 2: Driver heading to customer
+        const fraction = (step - 10) / 12;
+        currentLat = storeLat + (userLat - storeLat) * fraction;
+        currentLng = storeLng + (userLng - storeLng) * fraction;
+        
+        await update(ref(database, `orders/${activeOrder.id}`), { status: 'Rider Picked Up Order' });
+      } else {
+        // Phase 3: Rider is nearby
+        currentLat = userLat;
+        currentLng = userLng;
+        await update(ref(database, `orders/${activeOrder.id}`), { status: 'Rider is Nearby' });
+      }
 
       setGpsCoords({ latitude: currentLat, longitude: currentLng });
 
@@ -373,9 +398,7 @@ export default function App() {
           name: driverProfile.name
         });
 
-        if (step === 8) {
-          await update(ref(database, `orders/${activeOrder.id}`), { status: 'Rider is Nearby' });
-        } else if (step === totalSteps) {
+        if (step === totalSteps) {
           await update(ref(database, `orders/${activeOrder.id}`), { status: 'Order Delivered' });
           clearInterval(interval);
           setIsSimulating(false);
@@ -387,7 +410,7 @@ export default function App() {
         clearInterval(interval);
         setIsSimulating(false);
       }
-    }, 1000);
+    }, 1500); // 1.5s intervals for smoother pacing
   };
 
   const getUnassignedOrders = () => {

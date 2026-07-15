@@ -122,7 +122,7 @@ export default function DeliveryScreen() {
       });
       return () => unsubscribe();
     } else {
-      // Mock Sandbox Mode: Simulates rider travelling from restaurant to destination over 20s
+      // Mock Sandbox Mode: Simulates rider accepting, travelling to store, picking up, and delivery
       setHasRider(true);
       setRiderInfo({
         name: 'Sarah Jenkins (Sandbox)',
@@ -130,30 +130,44 @@ export default function DeliveryScreen() {
         image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
       });
 
+      // Spawn rider 1.2km away from the restaurant initially
+      const initialRiderLat = restaurantCoords.latitude + 0.008;
+      const initialRiderLng = restaurantCoords.longitude - 0.008;
+      setRiderLocation({ latitude: initialRiderLat, longitude: initialRiderLng });
+
       let elapsed = 0;
+      const totalSteps = 25;
+
       const interval = setInterval(() => {
         elapsed += 1;
         
-        if (elapsed < 5) {
+        if (elapsed <= 10) {
+          // Phase 1: Rider travels from start location to the restaurant
           setOrderStatus("Preparing Order");
-        } else if (elapsed < 12) {
+          const fraction = elapsed / 10;
+          setRiderLocation({
+            latitude: initialRiderLat + (restaurantCoords.latitude - initialRiderLat) * fraction,
+            longitude: initialRiderLng + (restaurantCoords.longitude - initialRiderLng) * fraction
+          });
+        } else if (elapsed <= 22) {
+          // Phase 2: Rider travels from restaurant to customer
           setOrderStatus("Rider Picked Up Order");
-        } else if (elapsed < 18) {
+          const fraction = (elapsed - 10) / 12;
+          setRiderLocation({
+            latitude: restaurantCoords.latitude + (userCoords.latitude - restaurantCoords.latitude) * fraction,
+            longitude: restaurantCoords.longitude + (userCoords.longitude - restaurantCoords.longitude) * fraction
+          });
+        } else if (elapsed < totalSteps) {
           setOrderStatus("Rider is Nearby");
+          setRiderLocation({
+            latitude: userCoords.latitude,
+            longitude: userCoords.longitude
+          });
         } else {
           setOrderStatus("Order Delivered");
           clearInterval(interval);
         }
-
-        const fraction = Math.min(elapsed / 20, 1);
-        const latDiff = userCoords.latitude - restaurantCoords.latitude;
-        const lngDiff = userCoords.longitude - restaurantCoords.longitude;
-        
-        setRiderLocation({
-          latitude: restaurantCoords.latitude + latDiff * fraction,
-          longitude: restaurantCoords.longitude + lngDiff * fraction
-        });
-      }, 1000);
+      }, 1500); // 1.5s steps for smoother pacing
 
       return () => clearInterval(interval);
     }
@@ -242,25 +256,60 @@ export default function DeliveryScreen() {
     });
   };
 
+  // Uber-style dual-phase remaining delivery time calculations
   const getETADisplay = () => {
     if (!hasRider) return "Assigning Rider...";
-    const mins = getRemainingTime(
-      riderLocation.latitude,
-      riderLocation.longitude,
-      userCoords.latitude,
-      userCoords.longitude
-    );
 
-    // If the merchant is still preparing the order, add the preparation buffer (e.g., 20 mins)
-    const isPreparing = 
+    const isHeadingToStore = 
       orderStatus === "Preparing" || 
       orderStatus === "Preparing Order" || 
       orderStatus === "Ready for Pickup";
 
-    if (isPreparing) {
-      return `${mins + 20} Minutes`;
+    if (isHeadingToStore) {
+      // Phase 1: Rider travels from current coordinates to the restaurant to fetch order
+      const minsToStore = getRemainingTime(
+        riderLocation.latitude,
+        riderLocation.longitude,
+        restaurantCoords.latitude,
+        restaurantCoords.longitude
+      );
+      // Total delivery ETA = travel to store + 8 minutes restaurant prep buffer
+      return `${minsToStore + 8} Minutes`;
+    } else {
+      // Phase 2: Rider picked up food and is traveling directly to user's home
+      const minsToUser = getRemainingTime(
+        riderLocation.latitude,
+        riderLocation.longitude,
+        userCoords.latitude,
+        userCoords.longitude
+      );
+      return `${minsToUser} Minutes`;
     }
-    return `${mins} Minutes`;
+  };
+
+  // Uber-style dual-phase status label
+  const getStatusLabel = () => {
+    if (!hasRider) return "Awaiting merchant dispatch partner assignment...";
+    
+    if (orderStatus === "Preparing" || orderStatus === "Preparing Order") {
+      const minsToStore = getRemainingTime(
+        riderLocation.latitude,
+        riderLocation.longitude,
+        restaurantCoords.latitude,
+        restaurantCoords.longitude
+      );
+      return `Rider heading to store (arriving in ${minsToStore} mins)`;
+    }
+    if (orderStatus === "Rider Picked Up Order" || orderStatus === "Driver on the way") {
+      const minsToUser = getRemainingTime(
+        riderLocation.latitude,
+        riderLocation.longitude,
+        userCoords.latitude,
+        userCoords.longitude
+      );
+      return `Rider heading to you (arriving in ${minsToUser} mins)`;
+    }
+    return orderStatus;
   };
 
   return (
@@ -290,9 +339,7 @@ export default function DeliveryScreen() {
           <View style={styles.progressBarBg}>
             <View style={[styles.progressBarFill, { width: hasRider ? (orderStatus === 'Order Delivered' ? '100%' : '75%') : '30%' }]} />
           </View>
-          <Text style={styles.progressStatusText}>
-            {hasRider ? orderStatus : "Awaiting merchant dispatch partner assignment..."}
-          </Text>
+          <Text style={styles.progressStatusText}>{getStatusLabel()}</Text>
         </View>
       </SafeAreaView>
 
