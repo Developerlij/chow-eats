@@ -78,6 +78,14 @@ export default function ProfileScreen({ navigation }) {
             <Ionicons name="chevron-forward" size={16} color="#CCCCCC" />
           </TouchableOpacity>
 
+          <TouchableOpacity style={styles.optionRow} onPress={() => navigation.navigate('Wallet')}>
+            <View style={styles.optionIconContainer}>
+              <Ionicons name="wallet-outline" size={20} color="#06C167" />
+            </View>
+            <Text style={styles.optionText}>Chow Wallet</Text>
+            <Ionicons name="chevron-forward" size={16} color="#CCCCCC" />
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.optionRow} onPress={() => navigation.navigate('PaymentMethods')}>
             <View style={styles.optionIconContainer}>
               <Ionicons name="card-outline" size={20} color="#06C167" />
