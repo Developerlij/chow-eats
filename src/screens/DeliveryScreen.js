@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import DeliveryMap from '../components/DeliveryMap';
 import { BasketContext } from '../context/BasketContext';
+import { AuthContext } from '../context/AuthContext';
 import FooterNavbar from '../components/FooterNavbar';
 import { ref, onValue } from 'firebase/database';
 import { database, isMockFirebase } from '../../firebase';
@@ -32,6 +33,8 @@ Notifications.setNotificationHandler({
 export default function DeliveryScreen() {
   const navigation = useNavigation();
   const { restaurant, activeOrderId } = useContext(BasketContext);
+  const { user } = useContext(AuthContext);
+  const userId = user?.uid || 'guest_user';
 
   // Fallback coords if no restaurant detail was cached
   const restaurantCoords = {
@@ -40,11 +43,12 @@ export default function DeliveryScreen() {
     name: restaurant?.name || "Nonna's Pizzeria"
   };
 
-  const userCoords = {
+  // State-driven user location to support dynamic location matching
+  const [userCoords, setUserCoords] = useState({
     latitude: 37.7749,
     longitude: -122.4194,
     name: "Your Home"
-  };
+  });
 
   const mapRegion = {
     latitude: (restaurantCoords.latitude + userCoords.latitude) / 2,
@@ -67,7 +71,25 @@ export default function DeliveryScreen() {
     image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
   });
 
-  // Real-time Database Order Status & Rider Coordinate Listener
+  // 1. Fetch user live coordinates from Firebase RTDB
+  useEffect(() => {
+    if (!isMockFirebase && database) {
+      const userLocRef = ref(database, `userLocations/${userId}`);
+      const unsubscribeUserLoc = onValue(userLocRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data && data.lat && data.lng) {
+          setUserCoords({
+            latitude: data.lat,
+            longitude: data.lng,
+            name: "Your Location"
+          });
+        }
+      });
+      return () => unsubscribeUserLoc();
+    }
+  }, [userId]);
+
+  // 2. Real-time Database Order Status & Rider Coordinate Listener
   useEffect(() => {
     if (!isMockFirebase && database && activeOrderId) {
       const orderRef = ref(database, `orders/${activeOrderId}`);
@@ -135,7 +157,7 @@ export default function DeliveryScreen() {
 
       return () => clearInterval(interval);
     }
-  }, [activeOrderId]);
+  }, [activeOrderId, userCoords.latitude, userCoords.longitude]);
 
   // Helper to calculate estimated travel minutes from Haversine distance
   const getRemainingTime = (lat1, lon1, lat2, lon2) => {
@@ -208,7 +230,7 @@ export default function DeliveryScreen() {
         trigger: null
       }).catch(() => {});
     }
-  }, [orderStatus, riderLocation]);
+  }, [orderStatus, riderLocation, userCoords.latitude, userCoords.longitude]);
 
   const handleCallRider = () => {
     if (!hasRider) {
@@ -228,6 +250,16 @@ export default function DeliveryScreen() {
       userCoords.latitude,
       userCoords.longitude
     );
+
+    // If the merchant is still preparing the order, add the preparation buffer (e.g., 20 mins)
+    const isPreparing = 
+      orderStatus === "Preparing" || 
+      orderStatus === "Preparing Order" || 
+      orderStatus === "Ready for Pickup";
+
+    if (isPreparing) {
+      return `${mins + 20} Minutes`;
+    }
     return `${mins} Minutes`;
   };
 
