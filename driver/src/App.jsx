@@ -27,6 +27,7 @@ export default function App() {
   const [gpsCoords, setGpsCoords] = useState(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [simProgress, setSimProgress] = useState(0);
+  const [customerCoords, setCustomerCoords] = useState(null);
   
   // Tab/Navigation view state: 'deliveries', 'earnings', or 'profile'
   const [viewMode, setViewMode] = useState('deliveries');
@@ -114,6 +115,28 @@ export default function App() {
       }
     });
 
+    return () => unsubscribe();
+  }, [activeOrder]);
+
+  // Listen to customer live coordinates from Firebase RTDB
+  useEffect(() => {
+    if (!activeOrder?.userId) {
+      setCustomerCoords(null);
+      return;
+    }
+    const customerLocRef = ref(database, `userLocations/${activeOrder.userId}`);
+    const unsubscribe = onValue(customerLocRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data && data.lat && data.lng) {
+        setCustomerCoords({
+          latitude: data.lat,
+          longitude: data.lng,
+          updatedAt: data.updatedAt
+        });
+      } else {
+        setCustomerCoords(null);
+      }
+    });
     return () => unsubscribe();
   }, [activeOrder]);
 
@@ -707,20 +730,51 @@ export default function App() {
                       <div className="address-row">
                         <MapPin size={16} color="#06C167" />
                         <div>
-                          <strong style={{ display: 'block', color: '#FFF' }}>Pickup: {activeOrder.restaurant?.name}</strong>
+                          <strong style={{ display: 'block', color: '#FFF' }}>Pickup From: {activeOrder.restaurant?.name}</strong>
                           <span style={{ fontSize: '13px' }}>{activeOrder.restaurant?.address}</span>
                         </div>
                       </div>
 
-                      <div style={{ width: '2px', height: '16px', backgroundColor: '#444', marginLeft: '7px' }} />
+                      <div style={{ width: '2px', height: '12px', backgroundColor: '#444', marginLeft: '7px' }} />
 
                       <div className="address-row">
-                        <MapPin size={16} color="#06C167" />
+                        <MapPin size={16} color="#E53935" />
                         <div>
-                          <strong style={{ display: 'block', color: '#FFF' }}>Dropoff: Your Home</strong>
-                          <span style={{ fontSize: '13px' }}>123 Roman Way, Food Town</span>
+                          <strong style={{ display: 'block', color: '#FFF' }}>Dropoff Destination:</strong>
+                          <span style={{ fontSize: '13px' }}>{activeOrder.deliveryAddress || 'No Dropoff Address Specified'}</span>
                         </div>
                       </div>
+
+                      <div style={{ width: '2px', height: '12px', backgroundColor: '#444', marginLeft: '7px' }} />
+
+                      <div className="address-row">
+                        <MapPin size={16} color="#0288D1" />
+                        <div>
+                          <strong style={{ display: 'block', color: '#FFF' }}>Customer Live GPS Feed:</strong>
+                          {customerCoords ? (
+                            <span style={{ fontSize: '13px', color: '#0288D1', fontFamily: 'monospace' }}>
+                              📍 {customerCoords.latitude.toFixed(5)}, {customerCoords.longitude.toFixed(5)} (Streaming live)
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '13px', color: '#777' }}>
+                              Awaiting customer GPS coordinates ping...
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Food Items list available for pickup */}
+                    <div style={{ marginTop: '14px', padding: '12px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid #333' }}>
+                      <strong style={{ fontSize: '13px', color: '#06C167', display: 'block', marginBottom: '8px' }}>
+                        📋 ITEMS TO PICK UP ({activeOrder.items ? activeOrder.items.reduce((sum, i) => sum + i.quantity, 0) : 0}):
+                      </strong>
+                      {activeOrder.items && activeOrder.items.map((item, idx) => (
+                        <div key={idx} style={{ fontSize: '13px', color: '#DDD', display: 'flex', justifyContent: 'space-between', marginVertical: '4px' }}>
+                          <span>• {item.name}</span>
+                          <strong style={{ color: '#06C167' }}>x{item.quantity}</strong>
+                        </div>
+                      ))}
                     </div>
 
                     <div className="card-divider" />
@@ -806,6 +860,17 @@ export default function App() {
                         <div>
                           <h3 className="restaurant-name">{order.restaurant?.name || 'Groceries Order'}</h3>
                           <p style={{ fontSize: '13px', color: '#888', marginTop: '2px' }}>{order.items ? order.items.reduce((sum, i) => sum + i.quantity, 0) : 0} items</p>
+                          
+                          {/* List of food items available for pickup */}
+                          <div style={{ margin: '8px 0', padding: '8px 10px', backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: '6px', border: '1px solid #333' }}>
+                            <span style={{ fontSize: '11px', color: '#888', display: 'block', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 'bold' }}>Items for pickup:</span>
+                            {order.items && order.items.map((item, idx) => (
+                              <div key={idx} style={{ fontSize: '12px', color: '#CCC', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>• {item.name}</span>
+                                <strong style={{ color: '#06C167' }}>x{item.quantity}</strong>
+                              </div>
+                            ))}
+                          </div>
                         </div>
 
                         <div className="address-row">
@@ -815,7 +880,7 @@ export default function App() {
 
                         <div className="address-row">
                           <MapPin size={14} color="#888" />
-                          <span>Dropoff: 123 Roman Way, Food Town</span>
+                          <span>Dropoff: {order.deliveryAddress || 'No Address Specified'}</span>
                         </div>
 
                         <div className="card-divider" />
