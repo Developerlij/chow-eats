@@ -6,6 +6,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthProvider, AuthContext } from './src/context/AuthContext';
 import { BasketProvider } from './src/context/BasketContext';
+import * as Location from 'expo-location';
 
 // Import Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -33,74 +34,85 @@ function NavigationWrapper() {
     
     const userId = user.uid || 'guest_user';
     const email = user.email || 'guest@example.com';
-    let watchId = null;
+    let locationSubscription = null;
+    let fallbackTimer = null;
 
-    const startTracking = () => {
-      if (navigator.geolocation) {
-        watchId = navigator.geolocation.watchPosition(
-          (position) => {
-            const { latitude, longitude } = position.coords;
-            const locRef = ref(database, `userLocations/${userId}`);
-            update(locRef, {
-              userId,
-              email,
-              lat: latitude,
-              lng: longitude,
-              updatedAt: new Date().toISOString()
-            }).catch(e => {});
-          },
-          (error) => {
-            // Simulated live location tracking updates for sandbox mode!
-            const mockLat = 37.7749 + (Math.random() - 0.5) * 0.02;
-            const mockLng = -122.4194 + (Math.random() - 0.5) * 0.02;
-            const locRef = ref(database, `userLocations/${userId}`);
-            update(locRef, {
-              userId,
-              email,
-              lat: mockLat,
-              lng: mockLng,
-              updatedAt: new Date().toISOString()
-            }).catch(e => {});
-          },
-          { enableHighAccuracy: true, distanceFilter: 10, timeout: 20000 }
-        );
+    const startTracking = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          // Watch user location change natively using Expo Location
+          locationSubscription = await Location.watchPositionAsync(
+            {
+              accuracy: Location.Accuracy.High,
+              distanceInterval: 10, // Update database every 10 meters of movement
+            },
+            (location) => {
+              if (location && location.coords) {
+                const { latitude, longitude } = location.coords;
+                const locRef = ref(database, `userLocations/${userId}`);
+                update(locRef, {
+                  userId,
+                  email,
+                  lat: latitude,
+                  lng: longitude,
+                  updatedAt: new Date().toISOString()
+                }).catch(e => {});
+              }
+            }
+          );
+        } else {
+          startFallbackTracking();
+        }
+      } catch (error) {
+        console.warn("Native location tracking initialization failed:", error);
+        startFallbackTracking();
       }
+    };
+
+    const startFallbackTracking = () => {
+      // Sandbox mode / Simulator fallback tracking
+      fallbackTimer = setInterval(async () => {
+        try {
+          const loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          if (loc && loc.coords) {
+            const locRef = ref(database, `userLocations/${userId}`);
+            update(locRef, {
+              userId,
+              email,
+              lat: loc.coords.latitude,
+              lng: loc.coords.longitude,
+              updatedAt: new Date().toISOString()
+            }).catch(e => {});
+            return;
+          }
+        } catch (e) {
+          // Fallback to random walk simulation around San Francisco coordinates
+          const mockLat = 37.7749 + (Math.random() - 0.5) * 0.005;
+          const mockLng = -122.4194 + (Math.random() - 0.5) * 0.005;
+          const locRef = ref(database, `userLocations/${userId}`);
+          update(locRef, {
+            userId,
+            email,
+            lat: mockLat,
+            lng: mockLng,
+            updatedAt: new Date().toISOString()
+          }).catch(e => {});
+        }
+      }, 10000);
     };
 
     startTracking();
 
-    const fallbackTimer = setInterval(() => {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const locRef = ref(database, `userLocations/${userId}`);
-            update(locRef, {
-              userId,
-              email,
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-              updatedAt: new Date().toISOString()
-            }).catch(e => {});
-          },
-          (err) => {
-            const mockLat = 37.7749 + (Math.random() - 0.5) * 0.02;
-            const mockLng = -122.4194 + (Math.random() - 0.5) * 0.02;
-            const locRef = ref(database, `userLocations/${userId}`);
-            update(locRef, {
-              userId,
-              email,
-              lat: mockLat,
-              lng: mockLng,
-              updatedAt: new Date().toISOString()
-            }).catch(e => {});
-          }
-        );
-      }
-    }, 15000);
-
     return () => {
-      if (watchId) navigator.geolocation.clearWatch(watchId);
-      clearInterval(fallbackTimer);
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+      if (fallbackTimer) {
+        clearInterval(fallbackTimer);
+      }
     };
   }, [user]);
 
