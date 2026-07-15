@@ -20,6 +20,11 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
+  // Signup specific state variables
+  const [fullName, setFullName] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [signUpPhone, setSignUpPhone] = useState('+234');
+  
   // Phone OTP specific state variables
   const [phoneNumber, setPhoneNumber] = useState('+234');
   const [otpSent, setOtpSent] = useState(false);
@@ -31,19 +36,32 @@ export default function LoginScreen() {
   const { login, register, signInWithPhone, verifyPhoneOtp, loginAsGuest, loading } = useContext(AuthContext);
 
   const handleSubmit = async () => {
-    if (!email || !password) {
-      setAuthError("Please fill in all fields.");
-      return;
-    }
     setAuthError('');
-    try {
-      if (isLogin) {
-        await login(email, password);
-      } else {
-        await register(email, password);
+    
+    if (isLogin) {
+      if (!email || !password) {
+        setAuthError("Please fill in all fields.");
+        return;
       }
-    } catch (err) {
-      setAuthError(err.message || "An authentication error occurred.");
+      try {
+        await login(email, password);
+      } catch (err) {
+        setAuthError(err.message || "An authentication error occurred.");
+      }
+    } else {
+      if (!fullName.trim() || !email.trim() || !signUpPhone.trim() || !password || !confirmPassword) {
+        setAuthError("Please fill in all fields to create your account.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setAuthError("Passwords do not match.");
+        return;
+      }
+      try {
+        await register(email, password, fullName.trim(), signUpPhone.trim());
+      } catch (err) {
+        setAuthError(err.message || "An authentication error occurred.");
+      }
     }
   };
 
@@ -179,8 +197,21 @@ export default function LoginScreen() {
             ) : null}
 
             {authMethod === 'email' ? (
-              /* EMAIL & PASSWORD LOGIN INPUTS */
+              /* EMAIL & PASSWORD LOGIN/SIGNUP INPUTS */
               <>
+                {!isLogin && (
+                  <View style={styles.inputContainer}>
+                    <Ionicons name="person-outline" size={20} color="#888" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Full Name"
+                      placeholderTextColor="#999"
+                      value={fullName}
+                      onChangeText={setFullName}
+                    />
+                  </View>
+                )}
+
                 <View style={styles.inputContainer}>
                   <Ionicons name="mail-outline" size={20} color="#888" style={styles.inputIcon} />
                   <TextInput
@@ -193,6 +224,20 @@ export default function LoginScreen() {
                     onChangeText={setEmail}
                   />
                 </View>
+
+                {!isLogin && (
+                  <View style={styles.inputContainer}>
+                    <Ionicons name="call-outline" size={20} color="#888" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Phone Number (e.g. +234...)"
+                      placeholderTextColor="#999"
+                      keyboardType="phone-pad"
+                      value={signUpPhone}
+                      onChangeText={setSignUpPhone}
+                    />
+                  </View>
+                )}
 
                 <View style={styles.inputContainer}>
                   <Ionicons name="lock-closed-outline" size={20} color="#888" style={styles.inputIcon} />
@@ -207,6 +252,21 @@ export default function LoginScreen() {
                   />
                 </View>
 
+                {!isLogin && (
+                  <View style={styles.inputContainer}>
+                    <Ionicons name="lock-closed-outline" size={20} color="#888" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Confirm Password"
+                      placeholderTextColor="#999"
+                      secureTextEntry
+                      autoCapitalize="none"
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                    />
+                  </View>
+                )}
+
                 <TouchableOpacity 
                   style={styles.submitBtn} 
                   onPress={handleSubmit}
@@ -215,7 +275,7 @@ export default function LoginScreen() {
                   {loading ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
-                    <Text style={styles.submitBtnText}>{isLogin ? 'Sign In' : 'Sign Up'}</Text>
+                    <Text style={styles.submitBtnText}>{isLogin ? 'Sign In' : 'Create Account'}</Text>
                   )}
                 </TouchableOpacity>
 

@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (email, password) => {
+  const register = async (email, password, fullName = '', phoneNumber = '') => {
     setLoading(true);
     setError(null);
     try {
@@ -60,6 +60,8 @@ export const AuthProvider = ({ children }) => {
         await dbSet(userRef, {
           uid: response.user.uid,
           email: response.user.email || email,
+          name: fullName || email.split('@')[0],
+          phoneNumber: phoneNumber || '',
           joinedAt: new Date().toISOString()
         });
       } catch (dbErr) {
