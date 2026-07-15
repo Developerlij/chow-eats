@@ -7,7 +7,9 @@ import {
   SafeAreaView, 
   Image, 
   Platform,
-  Linking
+  Linking,
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -57,18 +59,41 @@ export default function DeliveryScreen() {
     longitude: restaurantCoords.longitude
   });
 
+  // Dynamic Driver states
+  const [hasRider, setHasRider] = useState(false);
+  const [riderInfo, setRiderInfo] = useState({
+    name: 'Sarah Jenkins',
+    phone: '1234567890',
+    image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+  });
+
+  // Real-time Database Order Status & Rider Coordinate Listener
   useEffect(() => {
     if (!isMockFirebase && database && activeOrderId) {
-      // Real-time Database Order Status & Rider Coordinate Listener
       const orderRef = ref(database, `orders/${activeOrderId}`);
       const unsubscribe = onValue(orderRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
           if (data.status) setOrderStatus(data.status);
-          if (data.rider && data.rider.lat && data.rider.lng) {
+          
+          if (data.rider) {
+            setHasRider(true);
+            setRiderInfo({
+              name: data.rider.name || 'Dispatched Rider',
+              phone: data.rider.phone || '1234567890',
+              image: data.rider.image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+            });
+            if (data.rider.lat && data.rider.lng) {
+              setRiderLocation({
+                latitude: data.rider.lat,
+                longitude: data.rider.lng
+              });
+            }
+          } else {
+            setHasRider(false);
             setRiderLocation({
-              latitude: data.rider.lat,
-              longitude: data.rider.lng
+              latitude: restaurantCoords.latitude,
+              longitude: restaurantCoords.longitude
             });
           }
         }
@@ -76,6 +101,13 @@ export default function DeliveryScreen() {
       return () => unsubscribe();
     } else {
       // Mock Sandbox Mode: Simulates rider travelling from restaurant to destination over 20s
+      setHasRider(true);
+      setRiderInfo({
+        name: 'Sarah Jenkins (Sandbox)',
+        phone: '1234567890',
+        image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+      });
+
       let elapsed = 0;
       const interval = setInterval(() => {
         elapsed += 1;
@@ -179,9 +211,24 @@ export default function DeliveryScreen() {
   }, [orderStatus, riderLocation]);
 
   const handleCallRider = () => {
-    Linking.openURL('tel:1234567890').catch((err) => {
+    if (!hasRider) {
+      Alert.alert("Rider Not Assigned", "We are currently locating a nearby dispatch partner for your order.");
+      return;
+    }
+    Linking.openURL(`tel:${riderInfo.phone}`).catch((err) => {
       console.warn("Phone dialer not supported on this device:", err);
     });
+  };
+
+  const getETADisplay = () => {
+    if (!hasRider) return "Assigning Rider...";
+    const mins = getRemainingTime(
+      riderLocation.latitude,
+      riderLocation.longitude,
+      userCoords.latitude,
+      userCoords.longitude
+    );
+    return `${mins} Minutes`;
   };
 
   return (
@@ -202,16 +249,18 @@ export default function DeliveryScreen() {
           <View style={styles.etaRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.etaLabel}>Estimated Arrival</Text>
-              <Text style={styles.etaTime}>30-40 Minutes</Text>
+              <Text style={styles.etaTime}>{getETADisplay()}</Text>
             </View>
             <Ionicons name="bicycle" size={32} color="#06C167" />
           </View>
 
           {/* Simulated progress tracker */}
           <View style={styles.progressBarBg}>
-            <View style={styles.progressBarFill} />
+            <View style={[styles.progressBarFill, { width: hasRider ? (orderStatus === 'Order Delivered' ? '100%' : '75%') : '30%' }]} />
           </View>
-          <Text style={styles.progressStatusText}>{orderStatus}</Text>
+          <Text style={styles.progressStatusText}>
+            {hasRider ? orderStatus : "Awaiting merchant dispatch partner assignment..."}
+          </Text>
         </View>
       </SafeAreaView>
 
@@ -227,25 +276,43 @@ export default function DeliveryScreen() {
       {/* Bottom Driver Card */}
       <SafeAreaView style={styles.bottomSafeArea}>
         <View style={styles.driverCard}>
-          <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' }}
-            style={styles.driverAvatar}
-          />
-          
-          <View style={styles.driverDetails}>
-            <Text style={styles.driverName}>Sarah Jenkins</Text>
-            <Text style={styles.driverTitle}>Your Rider</Text>
-          </View>
+          {hasRider ? (
+            <>
+              <Image
+                source={{ uri: riderInfo.image }}
+                style={styles.driverAvatar}
+              />
+              
+              <View style={styles.driverDetails}>
+                <Text style={styles.driverName}>{riderInfo.name}</Text>
+                <Text style={styles.driverTitle}>Your Rider</Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={[styles.driverAvatar, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="small" color="#06C167" />
+              </View>
+              <View style={styles.driverDetails}>
+                <Text style={[styles.driverName, { color: '#888', fontWeight: '500' }]}>Finding your Rider...</Text>
+                <Text style={styles.driverTitle}>Assigning logistics partner</Text>
+              </View>
+            </>
+          )}
 
           <View style={styles.driverActions}>
             <TouchableOpacity 
-              style={styles.actionBtnCircle}
+              style={[styles.actionBtnCircle, !hasRider && { opacity: 0.5 }]}
               onPress={handleCallRider}
+              disabled={!hasRider}
             >
               <Ionicons name="call" size={20} color="#06C167" />
             </TouchableOpacity>
             
-            <TouchableOpacity style={[styles.actionBtnCircle, { marginLeft: 12 }]}>
+            <TouchableOpacity 
+              style={[styles.actionBtnCircle, { marginLeft: 12 }, !hasRider && { opacity: 0.5 }]}
+              disabled={!hasRider}
+            >
               <Ionicons name="chatbubble" size={20} color="#888888" />
             </TouchableOpacity>
           </View>
@@ -317,7 +384,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   progressBarFill: {
-    width: '40%', // Initial simulated progress
     height: '100%',
     backgroundColor: '#06C167',
     borderRadius: 3,
