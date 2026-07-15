@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { database } from './firebase';
+import { database, storage } from './firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
 import { 
   Store, 
@@ -45,8 +45,70 @@ export default function App() {
   const [dishDesc, setDishDesc] = useState('');
   const [dishPrice, setDishPrice] = useState('');
   const [dishImage, setDishImage] = useState('');
-
   const categoriesList = ['Pizza', 'Burgers', 'Sushi', 'Healthy', 'Nigerian', 'Desserts', 'Beverages', 'Groceries'];
+
+  const [restUploadProgress, setRestUploadProgress] = useState('');
+  const [dishUploadProgress, setDishUploadProgress] = useState('');
+
+  // Handle uploading store banner image
+  const handleStoreImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setRestUploadProgress('Processing...');
+    
+    // 1. Instant local preview fallback
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      setRestImage(reader.result);
+      setRestUploadProgress('Local preview ready!');
+
+      // 2. Perform background Firebase Storage upload
+      try {
+        const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+        const fileRef = sRef(storage, `restaurants/${Date.now()}_${file.name}`);
+        setRestUploadProgress('Uploading to cloud...');
+        const snapshot = await uploadBytes(fileRef, file);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        setRestImage(downloadUrl);
+        setRestUploadProgress('Cloud upload successful!');
+      } catch (err) {
+        console.warn("Storage upload failed, keeping base64 preview:", err);
+        setRestUploadProgress('Ready (preview fallback)');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Handle uploading food/dish product image
+  const handleDishImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setDishUploadProgress('Processing...');
+    
+    // 1. Instant local preview fallback
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      setDishImage(reader.result);
+      setDishUploadProgress('Local preview ready!');
+
+      // 2. Perform background Firebase Storage upload
+      try {
+        const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+        const fileRef = sRef(storage, `dishes/${Date.now()}_${file.name}`);
+        setDishUploadProgress('Uploading to cloud...');
+        const snapshot = await uploadBytes(fileRef, file);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        setDishImage(downloadUrl);
+        setDishUploadProgress('Cloud upload successful!');
+      } catch (err) {
+        console.warn("Storage upload failed, keeping base64 preview:", err);
+        setDishUploadProgress('Ready (preview fallback)');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   // 1. Fetch all restaurants from Firebase database
   useEffect(() => {
@@ -460,15 +522,28 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label>Image Cover URL</label>
-                <input 
-                  type="url" 
-                  className="form-control" 
-                  value={restImage}
-                  onChange={(e) => setRestImage(e.target.value)}
-                  placeholder="e.g. https://images.unsplash.com/..."
-                  required
-                />
+                <label>Store Cover Image</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleStoreImageUpload} 
+                    style={{ fontSize: '12px', color: '#888' }}
+                  />
+                  {restUploadProgress && (
+                    <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 'bold' }}>
+                      {restUploadProgress}
+                    </span>
+                  )}
+                  <input 
+                    type="url" 
+                    className="form-control" 
+                    value={restImage}
+                    onChange={(e) => setRestImage(e.target.value)}
+                    placeholder="Or paste an image URL directly..."
+                    required
+                  />
+                </div>
               </div>
 
               <div className="form-group">
@@ -604,15 +679,28 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label>Product Image URL</label>
-                <input 
-                  type="url" 
-                  className="form-control" 
-                  value={dishImage}
-                  onChange={(e) => setDishImage(e.target.value)}
-                  placeholder="e.g. https://images.unsplash.com/..."
-                  required
-                />
+                <label>Product Image</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleDishImageUpload} 
+                    style={{ fontSize: '12px', color: '#888' }}
+                  />
+                  {dishUploadProgress && (
+                    <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 'bold' }}>
+                      {dishUploadProgress}
+                    </span>
+                  )}
+                  <input 
+                    type="url" 
+                    className="form-control" 
+                    value={dishImage}
+                    onChange={(e) => setDishImage(e.target.value)}
+                    placeholder="Or paste a product image URL directly..."
+                    required
+                  />
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
