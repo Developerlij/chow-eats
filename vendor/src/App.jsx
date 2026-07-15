@@ -106,6 +106,22 @@ export default function App() {
     return () => unsubscribe();
   }, [selectedRest]);
 
+  const handleAutoDetectLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setRestLat(position.coords.latitude.toString());
+          setRestLng(position.coords.longitude.toString());
+        },
+        (error) => {
+          alert("Could not access browser location. Please enter coordinates manually.");
+        }
+      );
+    } else {
+      alert("Browser geolocation not supported. Please enter coordinates manually.");
+    }
+  };
+
   // 4. Create New Restaurant Profile
   const handleCreateRestaurant = async (e) => {
     e.preventDefault();
@@ -125,7 +141,9 @@ export default function App() {
       rating: 5.0,
       reviews: '1 review',
       lat: parseFloat(restLat) || 37.7749,
-      lng: parseFloat(restLng) || -122.4194
+      lng: parseFloat(restLng) || -122.4194,
+      verified: false,
+      status: 'Pending Verification'
     };
 
     try {
@@ -216,7 +234,9 @@ export default function App() {
             onChange={(e) => setSelectedRestId(e.target.value)}
           >
             {restaurants.map(r => (
-              <option key={r._id} value={r._id}>{r.name} ({r.category})</option>
+              <option key={r._id} value={r._id}>
+                {r.name} ({r.category}) {r.verified ? '✓' : '[Pending Verification]'}
+              </option>
             ))}
           </select>
           
@@ -238,6 +258,19 @@ export default function App() {
             {/* Left side: Restaurant Profile & Food Menu / Goods Manager */}
             <div className="main-panel">
               
+              {/* Verification Warning banner */}
+              {selectedRest && !selectedRest.verified && (
+                <div style={{ backgroundColor: 'rgba(245, 124, 0, 0.15)', border: '1px solid #FFB300', padding: '16px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
+                  <AlertTriangle color="#FFB300" size={24} />
+                  <div>
+                    <strong style={{ color: '#FFB300', display: 'block', fontSize: '14px' }}>Store Verification Pending</strong>
+                    <span style={{ fontSize: '13px', color: '#DDD' }}>
+                      This store is currently unverified. Only Admins and Operators can verify this store. It will not be shown on the Customer App until it is approved.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Restaurant info card */}
               <div className="card profile-card" style={{ backgroundImage: `linear-gradient(to bottom, rgba(18,18,18,0.7), rgba(18,18,18,0.95)), url(${selectedRest.image})` }}>
                 <div style={{ padding: '20px' }}>
@@ -461,9 +494,21 @@ export default function App() {
                 />
               </div>
 
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', textTransform: 'uppercase' }}>Store Location Coords</label>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ width: 'auto', padding: '4px 8px', fontSize: '11px', borderColor: 'var(--primary)', color: 'var(--primary)', fontWeight: 'bold' }}
+                  onClick={handleAutoDetectLocation}
+                >
+                  📍 Use Live Location
+                </button>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group">
-                  <label>Latitude Coords</label>
+                  <label>Latitude</label>
                   <input 
                     type="text" 
                     className="form-control" 
@@ -473,7 +518,7 @@ export default function App() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Longitude Coords</label>
+                  <label>Longitude</label>
                   <input 
                     type="text" 
                     className="form-control" 

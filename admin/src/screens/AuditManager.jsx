@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { database } from '../firebase';
-import { ref, onValue, update, set } from 'firebase/database';
+import { ref, onValue, update, set, remove } from 'firebase/database';
 import { ShieldCheck, Users, Briefcase, Bike, ToggleLeft, ToggleRight, Radio, Search, ShieldAlert } from 'lucide-react';
 
 export default function AuditManager() {
-  const [activeTab, setActiveTab] = useState('users'); // 'users', 'operators', 'drivers'
+  const [activeTab, setActiveTab] = useState('users'); // 'users', 'operators', 'drivers', 'stores'
   const [searchQuery, setSearchQuery] = useState('');
   
   // Real database states
   const [usersList, setUsersList] = useState([]);
   const [driversList, setDriversList] = useState([]);
   const [operatorsList, setOperatorsList] = useState([]);
+  const [storesList, setStoresList] = useState([]);
 
   useEffect(() => {
     // 1. Fetch Users from Firebase
@@ -61,10 +62,26 @@ export default function AuditManager() {
       }
     });
 
+    // 4. Fetch Stores (Restaurants) from Firebase
+    const storesRef = ref(database, 'restaurants');
+    const unsubscribeStores = onValue(storesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+        setStoresList(list);
+      } else {
+        setStoresList([]);
+      }
+    });
+
     return () => {
       unsubscribeUsers();
       unsubscribeDrivers();
       unsubscribeOperators();
+      unsubscribeStores();
     };
   }, []);
 
@@ -107,6 +124,30 @@ export default function AuditManager() {
     }
   };
 
+  // Action: Verify / Approve Merchant Store Registration request
+  const toggleStoreVerification = async (storeId, currentVerified) => {
+    try {
+      const nextVerified = !currentVerified;
+      await update(ref(database, `restaurants/${storeId}`), { 
+        verified: nextVerified,
+        status: nextVerified ? 'Active' : 'Pending Verification'
+      });
+    } catch (e) {
+      alert("Failed to verify merchant store: " + e.message);
+    }
+  };
+
+  // Action: Reject & delete unverified store
+  const deleteStore = async (storeId) => {
+    if (window.confirm("Are you sure you want to permanently reject and delete this store registration?")) {
+      try {
+        await remove(ref(database, `restaurants/${storeId}`));
+      } catch (e) {
+        alert("Failed to delete store: " + e.message);
+      }
+    }
+  };
+
   // Filters search inputs
   const getFilteredItems = () => {
     const query = searchQuery.toLowerCase().trim();
@@ -122,11 +163,17 @@ export default function AuditManager() {
         op.role.toLowerCase().includes(query) ||
         op.ip.includes(query)
       );
-    } else {
+    } else if (activeTab === 'drivers') {
       return driversList.filter(d => 
         d.name.toLowerCase().includes(query) ||
         (d.phone && d.phone.includes(query)) ||
         (d.vehicle && d.vehicle.toLowerCase().includes(query))
+      );
+    } else {
+      return storesList.filter(s => 
+        s.name.toLowerCase().includes(query) ||
+        (s.address && s.address.toLowerCase().includes(query)) ||
+        (s.category && s.category.toLowerCase().includes(query))
       );
     }
   };
@@ -210,6 +257,13 @@ export default function AuditManager() {
               onClick={() => { setActiveTab('drivers'); setSearchQuery(''); }}
             >
               🚲 Drivers ({driversList.length})
+            </button>
+            <button 
+              className={`action-btn-small ${activeTab === 'stores' ? 'action-btn-primary' : ''}`}
+              style={{ padding: '8px 16px', borderRadius: '6px', fontWeight: 'bold' }}
+              onClick={() => { setActiveTab('stores'); setSearchQuery(''); }}
+            >
+              🏪 Stores ({storesList.length})
             </button>
           </div>
 
@@ -448,6 +502,93 @@ export default function AuditManager() {
                   <tr>
                     <td colSpan="7" style={{ textAlign: 'center', color: '#999', padding: '24px' }}>
                       No matching delivery drivers found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+
+          {/* STORE/MERCHANT AUDIT PANEL */}
+          {activeTab === 'stores' && (
+            <table className="audit-table">
+              <thead>
+                <tr>
+                  <th>Store Cover</th>
+                  <th>Store Name</th>
+                  <th>Category</th>
+                  <th>Address</th>
+                  <th>Coordinates</th>
+                  <th>Verification Status</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.length > 0 ? (
+                  filteredItems.map((s) => (
+                    <tr key={s.id}>
+                      <td>
+                        <img 
+                          src={s.image} 
+                          alt={s.name} 
+                          style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover', backgroundColor: '#333' }}
+                        />
+                      </td>
+                      <td style={{ fontWeight: 'bold' }}>🏪 {s.name}</td>
+                      <td>
+                        <span className="status-badge delivered" style={{ backgroundColor: 'rgba(2, 136, 209, 0.15)', color: '#0288D1' }}>
+                          {s.category}
+                        </span>
+                      </td>
+                      <td>{s.address || '—'}</td>
+                      <td>
+                        {s.lat && s.lng ? (
+                          <code style={{ fontSize: '11.5px', color: '#06C167' }}>
+                            {parseFloat(s.lat).toFixed(4)}, {parseFloat(s.lng).toFixed(4)}
+                          </code>
+                        ) : (
+                          <span style={{ color: '#888', fontStyle: 'italic' }}>no coords</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`status-badge ${s.verified ? 'delivered' : 'pickup'}`}>
+                          {s.verified ? 'Verified ✓' : 'Pending Verification ⚠️'}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                          <button 
+                            className="action-btn-small"
+                            style={{ 
+                              backgroundColor: s.verified ? '#D32F2F' : '#388E3C', 
+                              borderColor: s.verified ? '#D32F2F' : '#388E3C',
+                              color: '#FFF',
+                              padding: '4px 10px'
+                            }}
+                            onClick={() => toggleStoreVerification(s.id, s.verified)}
+                          >
+                            {s.verified ? 'Revoke Store' : 'Verify Store'}
+                          </button>
+                          <button 
+                            className="action-btn-small"
+                            style={{ 
+                              backgroundColor: 'transparent', 
+                              borderColor: '#D32F2F',
+                              color: '#D32F2F',
+                              padding: '4px 10px'
+                            }}
+                            onClick={() => deleteStore(s.id)}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="7" style={{ textAlign: 'center', color: '#999', padding: '24px' }}>
+                      No merchant stores found.
                     </td>
                   </tr>
                 )}

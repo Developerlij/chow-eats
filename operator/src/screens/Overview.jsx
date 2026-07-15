@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { database } from '../firebase';
-import { ref, onValue } from 'firebase/database';
-import { TrendingUp, ShoppingBag, Store, Users, Key } from 'lucide-react';
+import { ref, onValue, update, remove } from 'firebase/database';
+import { TrendingUp, ShoppingBag, Store, Users, Key, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 export default function Overview() {
   const [metrics, setMetrics] = useState({
@@ -28,6 +28,28 @@ export default function Overview() {
   );
   const [tokenInputOpen, setTokenInputOpen] = useState(false);
   const [tempTokenInput, setTempTokenInput] = useState('');
+
+  // Store verification actions
+  const verifyStore = async (storeId) => {
+    try {
+      await update(ref(database, `restaurants/${storeId}`), {
+        verified: true,
+        status: 'Active'
+      });
+    } catch (e) {
+      alert("Failed to verify store: " + e.message);
+    }
+  };
+
+  const rejectStore = async (storeId) => {
+    if (window.confirm("Are you sure you want to reject and delete this merchant store request?")) {
+      try {
+        await remove(ref(database, `restaurants/${storeId}`));
+      } catch (e) {
+        alert("Failed to delete store: " + e.message);
+      }
+    }
+  };
 
   // 1. Fetch live metrics and coordinates from Firebase Realtime Database
   useEffect(() => {
@@ -567,6 +589,84 @@ export default function Overview() {
                 <tr>
                   <td colSpan="5" style={{ textAlign: 'center', color: '#999', padding: '24px' }}>
                     No orders placed yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Pending Store Registrations Table */}
+      <div className="card" style={{ marginTop: '20px' }}>
+        <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <AlertTriangle size={18} color="#FFB300" />
+          <span>Pending Merchant Store Registrations ({restaurants.filter(r => !r.verified).length})</span>
+        </div>
+        <div className="table-responsive" style={{ marginTop: '16px' }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Cover</th>
+                <th>Store Name</th>
+                <th>Category</th>
+                <th>Address</th>
+                <th>Coordinates</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {restaurants.filter(r => !r.verified).length > 0 ? (
+                restaurants.filter(r => !r.verified).map((s) => (
+                  <tr key={s.id}>
+                    <td>
+                      <img 
+                        src={s.image} 
+                        alt={s.name} 
+                        style={{ width: '36px', height: '36px', borderRadius: '4px', objectFit: 'cover', backgroundColor: '#333' }}
+                      />
+                    </td>
+                    <td style={{ fontWeight: 'bold', color: '#FFF' }}>🏪 {s.name}</td>
+                    <td>
+                      <span className="status-badge" style={{ backgroundColor: 'rgba(2, 136, 209, 0.15)', color: '#0288D1', fontSize: '10px', textTransform: 'uppercase', padding: '3px 8px', borderRadius: '4px' }}>
+                        {s.category}
+                      </span>
+                    </td>
+                    <td style={{ color: '#CCC' }}>{s.address || '—'}</td>
+                    <td>
+                      {s.lat && s.lng ? (
+                        <code style={{ fontSize: '11px', color: '#06C167', fontFamily: 'monospace' }}>
+                          {parseFloat(s.lat).toFixed(4)}, {parseFloat(s.lng).toFixed(4)}
+                        </code>
+                      ) : (
+                        <span style={{ color: '#666', fontStyle: 'italic' }}>no coords</span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button 
+                          className="btn" 
+                          style={{ width: 'auto', padding: '6px 12px', fontSize: '11.5px', textTransform: 'none', height: 'auto', backgroundColor: '#06C167', color: '#FFF' }}
+                          onClick={() => verifyStore(s.id)}
+                        >
+                          <ShieldCheck size={12} style={{ marginRight: '4px' }} />
+                          Verify Store
+                        </button>
+                        <button 
+                          className="btn btn-secondary" 
+                          style={{ width: 'auto', padding: '6px 12px', fontSize: '11.5px', textTransform: 'none', height: 'auto', borderColor: '#D32F2F', color: '#D32F2F' }}
+                          onClick={() => rejectStore(s.id)}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" style={{ textAlign: 'center', color: '#666', padding: '24px' }}>
+                    No pending store registrations require action.
                   </td>
                 </tr>
               )}
