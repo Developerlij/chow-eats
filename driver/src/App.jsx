@@ -231,6 +231,48 @@ export default function App() {
     }
   };
 
+  const handleSandboxBypass = async () => {
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const testId = 'rider_sandbox';
+      const testAccount = {
+        id: testId,
+        email: 'rider@chow.com',
+        password: 'password123'
+      };
+
+      // 1. Write the test driver account to RTDB
+      await set(ref(database, `driverAccounts/${testId}`), testAccount);
+
+      // 2. Write pre-approved driver profile to skip verification pending screen
+      const approvedProfile = {
+        id: testId,
+        email: 'rider@chow.com',
+        name: 'Sarah Jenkins (Sandbox)',
+        phone: '+2348011112222',
+        vehicle: 'Motorcycle',
+        plate: 'LAG-7829B',
+        engine: 'ENG-4729103B',
+        guarantorName: 'Chief Oba',
+        guarantorPhone: '+2348033334444',
+        image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+        status: 'Approved',
+        joinedAt: new Date().toISOString()
+      };
+      await set(ref(database, `drivers/${testId}`), approvedProfile);
+
+      // 3. Set local storage and React state session
+      localStorage.setItem('chow_rider_session', JSON.stringify(testAccount));
+      setSession(testAccount);
+      setDriverProfile(approvedProfile);
+    } catch (err) {
+      setAuthError("Sandbox bypass failed: " + err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -536,6 +578,18 @@ export default function App() {
                   {authMode === 'login' ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
                 </button>
               </div>
+
+              <div style={{ margin: '20px 0', borderTop: '1px solid #333' }}></div>
+
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ width: '100%', borderColor: 'var(--primary)', color: 'var(--primary)', fontWeight: 'bold' }}
+                onClick={handleSandboxBypass}
+                disabled={authLoading}
+              >
+                ⚡ Quick Sandbox Sign-In
+              </button>
             </form>
           </div>
         ) : !driverProfile ? (
