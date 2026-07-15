@@ -1,35 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { database, storage } from './firebase';
+import { database, storage, auth } from './firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
+import { 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from 'firebase/auth';
 import { 
   Store, 
   PlusCircle, 
   Trash2, 
   Edit3, 
-  CheckCircle2, 
   MapPin, 
-  Tag, 
   Layers, 
-  Image as ImageIcon,
-  DollarSign, 
-  ChevronRight,
   UtensilsCrossed,
   PackageCheck,
   AlertTriangle,
+  Activity,
+  LogOut,
+  Lock,
+  Mail,
   User,
-  Activity
+  ShieldCheck,
+  Info
 } from 'lucide-react';
 
 export default function App() {
+  // Auth state
+  const [user, setUser] = useState(null);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+
+  // App state
   const [restaurants, setRestaurants] = useState([]);
-  const [selectedRestId, setSelectedRestId] = useState('');
   const [selectedRest, setSelectedRest] = useState(null);
-  
-  // Real-time active orders for this restaurant
   const [activeOrders, setActiveOrders] = useState([]);
 
   // Form states for Registering a New Restaurant
-  const [showNewRestModal, setShowNewRestModal] = useState(false);
   const [restName, setRestName] = useState('');
   const [restImage, setRestImage] = useState('');
   const [restAddress, setRestAddress] = useState('');
@@ -45,73 +56,28 @@ export default function App() {
   const [dishDesc, setDishDesc] = useState('');
   const [dishPrice, setDishPrice] = useState('');
   const [dishImage, setDishImage] = useState('');
+
   const categoriesList = ['Pizza', 'Burgers', 'Sushi', 'Healthy', 'Nigerian', 'Desserts', 'Beverages', 'Groceries'];
 
   const [restUploadProgress, setRestUploadProgress] = useState('');
   const [dishUploadProgress, setDishUploadProgress] = useState('');
 
-  // Handle uploading store banner image
-  const handleStoreImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setRestUploadProgress('Processing...');
-    
-    // 1. Instant local preview fallback
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      setRestImage(reader.result);
-      setRestUploadProgress('Local preview ready!');
-
-      // 2. Perform background Firebase Storage upload
-      try {
-        const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
-        const fileRef = sRef(storage, `restaurants/${Date.now()}_${file.name}`);
-        setRestUploadProgress('Uploading to cloud...');
-        const snapshot = await uploadBytes(fileRef, file);
-        const downloadUrl = await getDownloadURL(snapshot.ref);
-        setRestImage(downloadUrl);
-        setRestUploadProgress('Cloud upload successful!');
-      } catch (err) {
-        console.warn("Storage upload failed, keeping base64 preview:", err);
-        setRestUploadProgress('Ready (preview fallback)');
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Handle uploading food/dish product image
-  const handleDishImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setDishUploadProgress('Processing...');
-    
-    // 1. Instant local preview fallback
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      setDishImage(reader.result);
-      setDishUploadProgress('Local preview ready!');
-
-      // 2. Perform background Firebase Storage upload
-      try {
-        const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
-        const fileRef = sRef(storage, `dishes/${Date.now()}_${file.name}`);
-        setDishUploadProgress('Uploading to cloud...');
-        const snapshot = await uploadBytes(fileRef, file);
-        const downloadUrl = await getDownloadURL(snapshot.ref);
-        setDishImage(downloadUrl);
-        setDishUploadProgress('Cloud upload successful!');
-      } catch (err) {
-        console.warn("Storage upload failed, keeping base64 preview:", err);
-        setDishUploadProgress('Ready (preview fallback)');
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // 1. Fetch all restaurants from Firebase database
+  // 1. Listen to Authentication State Changes
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (!currentUser) {
+        setSelectedRest(null);
+        setRestaurants([]);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Fetch restaurants from Firebase and filter for logged-in merchant's store
+  useEffect(() => {
+    if (!user) return;
+
     const restRef = ref(database, 'restaurants');
     const unsubscribe = onValue(restRef, (snapshot) => {
       const data = snapshot.val();
@@ -121,28 +87,18 @@ export default function App() {
           ...data[key],
           dishes: data[key].dishes ? Object.values(data[key].dishes) : []
         }));
-        setRestaurants(list);
         
-        // Auto-select first restaurant if none selected
-        if (!selectedRestId && list.length > 0) {
-          setSelectedRestId(list[0]._id);
-        }
+        // Find the store belonging to this specific user (restricted to exactly ONE)
+        const myStore = list.find(r => r.ownerId === user.uid);
+        setSelectedRest(myStore || null);
+        setRestaurants(list);
       } else {
+        setSelectedRest(null);
         setRestaurants([]);
       }
     });
     return () => unsubscribe();
-  }, [selectedRestId]);
-
-  // 2. Sync selected restaurant data
-  useEffect(() => {
-    if (selectedRestId) {
-      const current = restaurants.find(r => r._id === selectedRestId);
-      setSelectedRest(current || null);
-    } else {
-      setSelectedRest(null);
-    }
-  }, [selectedRestId, restaurants]);
+  }, [user]);
 
   // 3. Listen to active orders placed for this restaurant
   useEffect(() => {
@@ -168,6 +124,59 @@ export default function App() {
     return () => unsubscribe();
   }, [selectedRest]);
 
+  // Handle Auth submission
+  const handleAuthSubmit = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthLoading(true);
+
+    try {
+      if (isRegistering) {
+        await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+      } else {
+        await signInWithEmailAndPassword(auth, authEmail, authPassword);
+      }
+      setAuthEmail('');
+      setAuthPassword('');
+    } catch (err) {
+      setAuthError(err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Quick Sandbox Merchant Account login
+  const handleSandboxBypass = async () => {
+    setAuthError('');
+    setAuthLoading(true);
+    const sandboxEmail = 'sandbox_merchant@chow.com';
+    const sandboxPassword = 'chowmerchant123';
+
+    try {
+      await signInWithEmailAndPassword(auth, sandboxEmail, sandboxPassword);
+    } catch (err) {
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+        try {
+          await createUserWithEmailAndPassword(auth, sandboxEmail, sandboxPassword);
+        } catch (regErr) {
+          setAuthError("Failed to register sandbox account: " + regErr.message);
+        }
+      } else {
+        setAuthError(err.message);
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      alert("Sign out failed: " + err.message);
+    }
+  };
+
   const handleAutoDetectLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -184,13 +193,69 @@ export default function App() {
     }
   };
 
-  // 4. Create New Restaurant Profile
+  // Handle uploading store banner image
+  const handleStoreImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setRestUploadProgress('Processing...');
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      setRestImage(reader.result);
+      setRestUploadProgress('Local preview ready!');
+
+      try {
+        const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+        const fileRef = sRef(storage, `restaurants/${Date.now()}_${file.name}`);
+        setRestUploadProgress('Uploading to cloud...');
+        const snapshot = await uploadBytes(fileRef, file);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        setRestImage(downloadUrl);
+        setRestUploadProgress('Cloud upload successful!');
+      } catch (err) {
+        console.warn("Storage upload failed, keeping base64 preview:", err);
+        setRestUploadProgress('Ready (preview fallback)');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Handle uploading food/dish product image
+  const handleDishImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setDishUploadProgress('Processing...');
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      setDishImage(reader.result);
+      setDishUploadProgress('Local preview ready!');
+
+      try {
+        const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+        const fileRef = sRef(storage, `dishes/${Date.now()}_${file.name}`);
+        setDishUploadProgress('Uploading to cloud...');
+        const snapshot = await uploadBytes(fileRef, file);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        setDishImage(downloadUrl);
+        setDishUploadProgress('Cloud upload successful!');
+      } catch (err) {
+        console.warn("Storage upload failed, keeping base64 preview:", err);
+        setDishUploadProgress('Ready (preview fallback)');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Create Merchant Restaurant Profile (Only 1 allowed, links to ownerId: user.uid)
   const handleCreateRestaurant = async (e) => {
     e.preventDefault();
     if (!restName || !restAddress || !restImage) {
-      alert("Please fill in Name, Address, and Image URL.");
+      alert("Please fill in Name, Address, and Image.");
       return;
     }
+
+    if (!user) return;
 
     const newId = 'rest_' + Date.now();
     const newRestaurant = {
@@ -205,13 +270,12 @@ export default function App() {
       lat: parseFloat(restLat) || 37.7749,
       lng: parseFloat(restLng) || -122.4194,
       verified: false,
-      status: 'Pending Verification'
+      status: 'Pending Verification',
+      ownerId: user.uid // Bound exclusively to this merchant account!
     };
 
     try {
       await set(ref(database, `restaurants/${newId}`), newRestaurant);
-      setSelectedRestId(newId);
-      setShowNewRestModal(false);
       // Reset fields
       setRestName('');
       setRestImage('');
@@ -221,15 +285,15 @@ export default function App() {
       setRestLat('37.7749');
       setRestLng('-122.4194');
     } catch (e) {
-      alert("Failed to create vendor: " + e.message);
+      alert("Failed to create store: " + e.message);
     }
   };
 
-  // 5. Add / Edit Dish/Good Item
+  // Add / Edit Dish/Good Item
   const handleSaveDish = async (e) => {
     e.preventDefault();
     if (!dishName || !dishPrice || !dishImage) {
-      alert("Please fill in Name, Price, and Image URL.");
+      alert("Please fill in Name, Price, and Image.");
       return;
     }
 
@@ -258,10 +322,10 @@ export default function App() {
     }
   };
 
-  // 6. Delete Dish/Good Item
+  // Delete Dish/Good Item
   const handleDeleteDish = async (dishId) => {
     if (!selectedRest) return;
-    if (window.confirm("Are you sure you want to delete this food item/good?")) {
+    if (window.confirm("Are you sure you want to delete this item?")) {
       try {
         await remove(ref(database, `restaurants/${selectedRest._id}/dishes/${dishId}`));
       } catch (e) {
@@ -270,7 +334,7 @@ export default function App() {
     }
   };
 
-  // 7. Update order status
+  // Update order status
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
     try {
       await update(ref(database, `orders/${orderId}`), { status: newStatus });
@@ -279,35 +343,124 @@ export default function App() {
     }
   };
 
+  // ----------------------------------------------------
+  // RENDER AUTHENTICATION PORTAL (IF NOT LOGGED IN)
+  // ----------------------------------------------------
+  if (!user) {
+    return (
+      <div className="vendor-app" style={{ justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: '20px' }}>
+        <div className="card" style={{ width: '100%', maxWidth: '420px', padding: '32px', borderRadius: '16px' }}>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '24px' }}>
+            <div style={{ backgroundColor: 'rgba(6, 193, 103, 0.1)', padding: '14px', borderRadius: '12px', marginBottom: '12px' }}>
+              <Store size={36} color="var(--primary)" />
+            </div>
+            <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#FFF' }}>Chow Merchant Portal</h2>
+            <p style={{ color: 'var(--text-gray)', fontSize: '13px', marginTop: '4px', textAlign: 'center' }}>
+              Manage your food menu, upload grocery items, and fulfill live delivery orders.
+            </p>
+          </div>
+
+          <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {authError && (
+              <div style={{ backgroundColor: 'rgba(229, 57, 53, 0.1)', border: '1px solid var(--danger)', padding: '10px', borderRadius: '8px', fontSize: '12.5px', color: '#FF7043' }}>
+                {authError}
+              </div>
+            )}
+
+            <div className="form-group">
+              <label>Merchant Email Address</label>
+              <div style={{ position: 'relative' }}>
+                <Mail size={16} color="#666" style={{ position: 'absolute', left: '12px', top: '13px' }} />
+                <input 
+                  type="email" 
+                  className="form-control" 
+                  style={{ paddingLeft: '38px' }}
+                  placeholder="name@restaurant.com"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Password</label>
+              <div style={{ position: 'relative' }}>
+                <Lock size={16} color="#666" style={{ position: 'absolute', left: '12px', top: '13px' }} />
+                <input 
+                  type="password" 
+                  className="form-control" 
+                  style={{ paddingLeft: '38px' }}
+                  placeholder="••••••••"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <button type="submit" className="btn btn-primary" style={{ padding: '14px', fontWeight: 'bold' }}>
+              {authLoading ? 'Verifying Account...' : (isRegistering ? 'Register & Begin Setup' : 'Log In to Store')}
+            </button>
+          </form>
+
+          <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px' }}>
+            <span style={{ color: 'var(--text-gray)' }}>
+              {isRegistering ? 'Already have a store account?' : 'Want to register a new restaurant?'}
+            </span>{' '}
+            <button 
+              onClick={() => setIsRegistering(!isRegistering)}
+              style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}
+            >
+              {isRegistering ? 'Log In here' : 'Register Store here'}
+            </button>
+          </div>
+
+          <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '20px 0' }} />
+
+          <button 
+            type="button" 
+            className="btn btn-secondary" 
+            onClick={handleSandboxBypass}
+            style={{ borderColor: 'var(--primary)', color: 'var(--primary)', fontWeight: 'bold', gap: '8px' }}
+          >
+            ⚡ Quick Sandbox Sign-In
+          </button>
+          
+        </div>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------
+  // LOGGED IN VIEWPORT
+  // ----------------------------------------------------
   return (
     <div className="vendor-app">
       {/* Header bar */}
       <header className="navbar">
         <div className="nav-logo">
-          <Store size={24} />
+          <Store size={22} />
           <span>Chow Merchant Portal</span>
         </div>
         
-        {/* Restaurant selector dropdown */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <select 
-            className="rest-select"
-            value={selectedRestId}
-            onChange={(e) => setSelectedRestId(e.target.value)}
-          >
-            {restaurants.map(r => (
-              <option key={r._id} value={r._id}>
-                {r.name} ({r.category}) {r.verified ? '✓' : '[Pending Verification]'}
-              </option>
-            ))}
-          </select>
+        {/* User Account controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {selectedRest && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#BBB' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: selectedRest.verified ? 'var(--primary)' : 'var(--warning)' }} />
+              <strong style={{ color: '#FFF' }}>{selectedRest.name}</strong>
+              <span>({selectedRest.category})</span>
+            </div>
+          )}
           
           <button 
-            className="btn btn-primary" 
-            style={{ width: 'auto', padding: '8px 14px', fontSize: '13px' }}
-            onClick={() => setShowNewRestModal(true)}
+            className="btn btn-secondary" 
+            style={{ width: 'auto', padding: '6px 12px', fontSize: '12px', display: 'flex', gap: '6px', height: 'auto', borderColor: '#444' }}
+            onClick={handleLogout}
           >
-            <PlusCircle size={16} /> Register Store
+            <LogOut size={14} /> Log Out
           </button>
         </div>
       </header>
@@ -315,19 +468,20 @@ export default function App() {
       {/* Main layout viewport */}
       <main className="content">
         {selectedRest ? (
+          /* DASHBOARD VIEWPORT (If store is registered) */
           <div className="vendor-grid">
             
             {/* Left side: Restaurant Profile & Food Menu / Goods Manager */}
             <div className="main-panel">
               
               {/* Verification Warning banner */}
-              {selectedRest && !selectedRest.verified && (
-                <div style={{ backgroundColor: 'rgba(245, 124, 0, 0.15)', border: '1px solid #FFB300', padding: '16px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
+              {!selectedRest.verified && (
+                <div style={{ backgroundColor: 'rgba(245, 124, 0, 0.12)', border: '1px solid #FFB300', padding: '16px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
                   <AlertTriangle color="#FFB300" size={24} />
                   <div>
                     <strong style={{ color: '#FFB300', display: 'block', fontSize: '14px' }}>Store Verification Pending</strong>
                     <span style={{ fontSize: '13px', color: '#DDD' }}>
-                      This store is currently unverified. Only Admins and Operators can verify this store. It will not be shown on the Customer App until it is approved.
+                      Your store registration request is currently unverified. Only Admins and Operators can verify this profile. It will not be shown on the Customer App until it is approved.
                     </span>
                   </div>
                 </div>
@@ -432,7 +586,7 @@ export default function App() {
             {/* Right side: Real-time orders feed for this merchant */}
             <div className="sidebar-panel">
               <div className="card">
-                <div className="card-title" style={{ color: 'var(--primary)' }}>
+                <div className="card-title" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Activity size={18} />
                   <span>Real-time Orders Feed ({activeOrders.length})</span>
                 </div>
@@ -495,144 +649,138 @@ export default function App() {
 
           </div>
         ) : (
-          <div style={{ textAlign: 'center', padding: '80px 20px', color: '#888' }}>
-            <Store size={64} style={{ marginBottom: '16px', opacity: 0.3 }} />
-            <h2>No Merchant Stores Registered</h2>
-            <p style={{ marginTop: '8px' }}>Register a store profile using the button above to begin uploading menus and products.</p>
-          </div>
-        )}
-      </main>
-
-      {/* NEW RESTAURANT REGISTRATION MODAL */}
-      {showNewRestModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <h3 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--primary)', fontWeight: 'bold' }}>Register New Merchant Store</h3>
-            <form onSubmit={handleCreateRestaurant}>
-              <div className="form-group">
-                <label>Store Name</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  value={restName}
-                  onChange={(e) => setRestName(e.target.value)}
-                  placeholder="e.g. Nonna's Pizzeria"
-                  required
-                />
+          /* REGISTRATION DESK SCREEN (If no store is registered to UID) */
+          <div style={{ maxWidth: '640px', margin: '40px auto' }}>
+            <div className="card" style={{ padding: '32px', borderRadius: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                <div style={{ backgroundColor: 'rgba(6, 193, 103, 0.1)', padding: '10px', borderRadius: '8px' }}>
+                  <Store size={28} color="var(--primary)" />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#FFF' }}>Register Your Store / Restaurant</h2>
+                  <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginTop: '2px' }}>
+                    Create your merchant profile. You can register exactly one store under this account.
+                  </p>
+                </div>
               </div>
 
-              <div className="form-group">
-                <label>Store Cover Image</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <form onSubmit={handleCreateRestaurant}>
+                <div className="form-group">
+                  <label>Store Name</label>
                   <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={handleStoreImageUpload} 
-                    style={{ fontSize: '12px', color: '#888' }}
-                  />
-                  {restUploadProgress && (
-                    <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 'bold' }}>
-                      {restUploadProgress}
-                    </span>
-                  )}
-                  <input 
-                    type="url" 
+                    type="text" 
                     className="form-control" 
-                    value={restImage}
-                    onChange={(e) => setRestImage(e.target.value)}
-                    placeholder="Or paste an image URL directly..."
+                    value={restName}
+                    onChange={(e) => setRestName(e.target.value)}
+                    placeholder="e.g. Nonna's Pizzeria"
                     required
                   />
                 </div>
-              </div>
 
-              <div className="form-group">
-                <label>Address Details</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  value={restAddress}
-                  onChange={(e) => setRestAddress(e.target.value)}
-                  placeholder="e.g. 123 Roman Way, Food Town"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Description Bio</label>
-                <textarea 
-                  className="form-control" 
-                  value={restDesc}
-                  onChange={(e) => setRestDesc(e.target.value)}
-                  placeholder="e.g. Authentic stone-baked Italian pizza..."
-                  rows={2}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', textTransform: 'uppercase' }}>Store Location Coords</label>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ width: 'auto', padding: '4px 8px', fontSize: '11px', borderColor: 'var(--primary)', color: 'var(--primary)', fontWeight: 'bold' }}
-                  onClick={handleAutoDetectLocation}
-                >
-                  📍 Use Live Location
-                </button>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group">
-                  <label>Latitude</label>
+                  <label>Store Cover Image</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleStoreImageUpload} 
+                      style={{ fontSize: '12px', color: '#888' }}
+                    />
+                    {restUploadProgress && (
+                      <span style={{ fontSize: '11.5px', color: 'var(--primary)', fontWeight: 'bold' }}>
+                        {restUploadProgress}
+                      </span>
+                    )}
+                    <input 
+                      type="url" 
+                      className="form-control" 
+                      value={restImage}
+                      onChange={(e) => setRestImage(e.target.value)}
+                      placeholder="Or paste an image URL directly..."
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Address Details</label>
                   <input 
                     type="text" 
                     className="form-control" 
-                    value={restLat}
-                    onChange={(e) => setRestLat(e.target.value)}
-                    placeholder="37.7749"
+                    value={restAddress}
+                    onChange={(e) => setRestAddress(e.target.value)}
+                    placeholder="e.g. 123 Roman Way, Food Town"
+                    required
                   />
                 </div>
+
                 <div className="form-group">
-                  <label>Longitude</label>
-                  <input 
-                    type="text" 
+                  <label>Description Bio</label>
+                  <textarea 
                     className="form-control" 
-                    value={restLng}
-                    onChange={(e) => setRestLng(e.target.value)}
-                    placeholder="-122.4194"
+                    value={restDesc}
+                    onChange={(e) => setRestDesc(e.target.value)}
+                    placeholder="e.g. Authentic stone-baked Italian pizza..."
+                    rows={3}
                   />
                 </div>
-              </div>
 
-              <div className="form-group">
-                <label>Category Group</label>
-                <select 
-                  className="form-control"
-                  value={restCategory}
-                  onChange={(e) => setRestCategory(e.target.value)}
-                >
-                  {categoriesList.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', marginTop: '16px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', textTransform: 'uppercase' }}>Store Location Coords</label>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ width: 'auto', padding: '4px 8px', fontSize: '11px', borderColor: 'var(--primary)', color: 'var(--primary)', fontWeight: 'bold' }}
+                    onClick={handleAutoDetectLocation}
+                  >
+                    📍 Use Live Location
+                  </button>
+                </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                <button 
-                  type="button" 
-                  className="btn btn-secondary" 
-                  onClick={() => setShowNewRestModal(false)}
-                >
-                  Cancel
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                  <div className="form-group">
+                    <label>Latitude</label>
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      value={restLat}
+                      onChange={(e) => setRestLat(e.target.value)}
+                      placeholder="37.7749"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Longitude</label>
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      value={restLng}
+                      onChange={(e) => setRestLng(e.target.value)}
+                      placeholder="-122.4194"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Category Group</label>
+                  <select 
+                    className="form-control"
+                    value={restCategory}
+                    onChange={(e) => setRestCategory(e.target.value)}
+                  >
+                    {categoriesList.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <button type="submit" className="btn btn-primary" style={{ marginTop: '16px', padding: '14px', fontSize: '15px' }}>
+                  Submit Store for Verification
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  Register Profile
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </main>
 
       {/* NEW/EDIT INVENTORY ITEM MODAL */}
       {showDishModal && (
