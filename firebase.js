@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
+import { getFirestore } from "firebase/firestore";
 import { initializeAuth, getReactNativePersistence, getAuth } from "firebase/auth";
 import { Platform } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,6 +18,7 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const database = getDatabase(app);
+export const firestore = getFirestore(app);
 
 // Conditionally initialize Auth to prevent "getReactNativePersistence is not a function" errors on Web target
 let firebaseAuth;

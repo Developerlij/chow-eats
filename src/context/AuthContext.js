@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
-import { auth, database } from '../services/firebase';
+import { auth, database, firestore } from '../services/firebase';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -53,19 +53,28 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const response = await createUserWithEmailAndPassword(auth, email, password);
-      // Write profile to database
+      // Write profile to database (Realtime Database & Cloud Firestore)
       try {
         const { ref: dbRef, set: dbSet } = await import('firebase/database');
-        const userRef = dbRef(database, `users/${response.user.uid}`);
-        await dbSet(userRef, {
+        const { doc: fsDoc, setDoc: fsSetDoc } = await import('firebase/firestore');
+        
+        const userData = {
           uid: response.user.uid,
           email: response.user.email || email,
           name: fullName || email.split('@')[0],
           phoneNumber: phoneNumber || '',
           joinedAt: new Date().toISOString()
-        });
+        };
+
+        // 1. Write to RTDB for compatibility with existing dashboard panels
+        const userRef = dbRef(database, `users/${response.user.uid}`);
+        await dbSet(userRef, userData);
+
+        // 2. Write to Cloud Firestore
+        const userDoc = fsDoc(firestore, 'users', response.user.uid);
+        await fsSetDoc(userDoc, userData);
       } catch (dbErr) {
-        console.warn("Writing registered user to DB failed:", dbErr);
+        console.warn("Writing registered user to Firestore/DB failed:", dbErr);
       }
       setUser(response.user);
       return response.user;
@@ -110,18 +119,27 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const response = await confirmationResult.confirm(code);
-      // Write profile to database
+      // Write profile to database (Realtime Database & Cloud Firestore)
       try {
         const { ref: dbRef, set: dbSet } = await import('firebase/database');
-        const userRef = dbRef(database, `users/${response.user.uid}`);
-        await dbSet(userRef, {
+        const { doc: fsDoc, setDoc: fsSetDoc } = await import('firebase/firestore');
+        
+        const userData = {
           uid: response.user.uid,
           email: response.user.email || 'Phone User',
           phoneNumber: response.user.phoneNumber || 'None',
           joinedAt: new Date().toISOString()
-        });
+        };
+
+        // 1. Write to RTDB for compatibility with dashboards
+        const userRef = dbRef(database, `users/${response.user.uid}`);
+        await dbSet(userRef, userData);
+
+        // 2. Write to Cloud Firestore
+        const userDoc = fsDoc(firestore, 'users', response.user.uid);
+        await fsSetDoc(userDoc, userData);
       } catch (dbErr) {
-        console.warn("Writing phone user to DB failed:", dbErr);
+        console.warn("Writing phone user to Firestore/DB failed:", dbErr);
       }
       setUser(response.user);
       return response.user;
@@ -150,17 +168,26 @@ export const AuthProvider = ({ children }) => {
       isAnonymous: true
     };
     
-    // Write profile to database
+    // Write profile to database (Realtime Database & Cloud Firestore)
     try {
       const { ref: dbRef, set: dbSet } = await import('firebase/database');
-      const userRef = dbRef(database, `users/${guestUid}`);
-      await dbSet(userRef, {
+      const { doc: fsDoc, setDoc: fsSetDoc } = await import('firebase/firestore');
+      
+      const userData = {
         uid: guestUid,
         email: 'guest@chow.com',
         joinedAt: new Date().toISOString()
-      });
+      };
+
+      // 1. Write to RTDB for compatibility with dashboards
+      const userRef = dbRef(database, `users/${guestUid}`);
+      await dbSet(userRef, userData);
+
+      // 2. Write to Cloud Firestore
+      const userDoc = fsDoc(firestore, 'users', guestUid);
+      await fsSetDoc(userDoc, userData);
     } catch (dbErr) {
-      console.warn("Writing guest user to DB failed:", dbErr);
+      console.warn("Writing guest user to Firestore/DB failed:", dbErr);
     }
 
     setUser(guestUser);
