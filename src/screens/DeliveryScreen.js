@@ -19,16 +19,24 @@ import { AuthContext } from '../context/AuthContext';
 import FooterNavbar from '../components/FooterNavbar';
 import { ref, onValue } from 'firebase/database';
 import { database, isMockFirebase } from '../../firebase';
-import * as Notifications from 'expo-notifications';
-
-// Configure standard notification display configuration for active foreground states
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+let Notifications = null;
+try {
+  // Expo Go (since SDK 53) does not support remote push notifications and crashes during import.
+  // We wrap it in a try-catch to allow the app to run safely.
+  Notifications = require('expo-notifications');
+  
+  if (Notifications && Notifications.setNotificationHandler) {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+  }
+} catch (e) {
+  console.warn("expo-notifications is not supported in this environment:", e);
+}
 
 export default function DeliveryScreen() {
   const navigation = useNavigation();
@@ -193,10 +201,14 @@ export default function DeliveryScreen() {
   // Request notifications permissions on screen mount
   useEffect(() => {
     async function requestPermissions() {
-      if (Platform.OS !== 'web') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status !== 'granted') {
-          console.warn("Local notification permissions not granted by user.");
+      if (Platform.OS !== 'web' && Notifications && Notifications.requestPermissionsAsync) {
+        try {
+          const { status } = await Notifications.requestPermissionsAsync();
+          if (status !== 'granted') {
+            console.warn("Local notification permissions not granted by user.");
+          }
+        } catch (e) {
+          console.warn("Failed to request permissions:", e);
         }
       }
     }
@@ -219,30 +231,36 @@ export default function DeliveryScreen() {
         userCoords.longitude
       );
 
-      Notifications.scheduleNotificationAsync({
-        identifier: 'active-order-tracking',
-        content: {
-          title: orderStatus === "Rider is Nearby" ? "Rider is nearby! 🚴" : "Chow Eats: Rider en route! 🚴",
-          body: `Estimated arrival: ${minsRemaining} mins remaining.`,
-          sound: true,
-          priority: Notifications.AndroidNotificationPriority.HIGH,
-        },
-        trigger: null
-      }).catch(() => {});
+      if (Notifications && Notifications.scheduleNotificationAsync) {
+        Notifications.scheduleNotificationAsync({
+          identifier: 'active-order-tracking',
+          content: {
+            title: orderStatus === "Rider is Nearby" ? "Rider is nearby! 🚴" : "Chow Eats: Rider en route! 🚴",
+            body: `Estimated arrival: ${minsRemaining} mins remaining.`,
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority?.HIGH || 4,
+          },
+          trigger: null
+        }).catch(() => {});
+      }
     } else if (orderStatus === "Order Delivered") {
       // Dismiss active rider en-route progress notifications and push final alert
-      Notifications.dismissNotificationAsync('active-order-tracking').catch(() => {});
+      if (Notifications && Notifications.dismissNotificationAsync) {
+        Notifications.dismissNotificationAsync('active-order-tracking').catch(() => {});
+      }
       
-      Notifications.scheduleNotificationAsync({
-        identifier: 'order-delivered-alert',
-        content: {
-          title: "Order Delivered! 🎉",
-          body: "Your hot meal has arrived. Bon appétit!",
-          sound: true,
-          priority: Notifications.AndroidNotificationPriority.HIGH,
-        },
-        trigger: null
-      }).catch(() => {});
+      if (Notifications && Notifications.scheduleNotificationAsync) {
+        Notifications.scheduleNotificationAsync({
+          identifier: 'order-delivered-alert',
+          content: {
+            title: "Order Delivered! 🎉",
+            body: "Your hot meal has arrived. Bon appétit!",
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority?.HIGH || 4,
+          },
+          trigger: null
+        }).catch(() => {});
+      }
     }
   }, [orderStatus, riderLocation, userCoords.latitude, userCoords.longitude]);
 
