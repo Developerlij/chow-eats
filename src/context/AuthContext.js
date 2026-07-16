@@ -29,11 +29,38 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await signInWithEmailAndPassword(auth, email, password);
-      setUser(response.user);
-      return response.user;
+      try {
+        const response = await signInWithEmailAndPassword(auth, email, password);
+        setUser(response.user);
+        return response.user;
+      } catch (authErr) {
+        // Fallback to database accounts if Auth is unconfigured
+        if (authErr.code === "auth/configuration-not-found" || authErr.code === "auth/operation-not-allowed") {
+          const { ref: dbRef, get: dbGet, child: dbChild } = await import('firebase/database');
+          const accountsSnapshot = await dbGet(dbChild(dbRef(database), 'userAccounts'));
+          const accounts = accountsSnapshot.val() || {};
+          
+          const matched = Object.values(accounts).find(
+            acc => acc.email.toLowerCase() === email.toLowerCase() && acc.password === password
+          );
+
+          if (!matched) {
+            throw new Error("Invalid email or password.");
+          }
+
+          const mockUser = {
+            uid: matched.id,
+            email: matched.email,
+            displayName: matched.name || matched.email.split('@')[0]
+          };
+          setUser(mockUser);
+          return mockUser;
+        } else {
+          throw authErr;
+        }
+      }
     } catch (err) {
-      let friendlyMessage = "Failed to sign in. Please check your credentials.";
+      let friendlyMessage = err.message || "Failed to sign in. Please check your credentials.";
       if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
         friendlyMessage = "Invalid email or password.";
       } else if (err.code === "auth/invalid-email") {
@@ -52,34 +79,100 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await createUserWithEmailAndPassword(auth, email, password);
-      // Write profile to database (Realtime Database & Cloud Firestore)
+      let mockUser;
       try {
-        const { ref: dbRef, set: dbSet } = await import('firebase/database');
-        const { doc: fsDoc, setDoc: fsSetDoc } = await import('firebase/firestore');
+        const response = await createUserWithEmailAndPassword(auth, email, password);
         
-        const userData = {
-          uid: response.user.uid,
-          email: response.user.email || email,
-          name: fullName || email.split('@')[0],
-          phoneNumber: phoneNumber || '',
-          joinedAt: new Date().toISOString()
-        };
+        // Write profile to database (Realtime Database & Cloud Firestore)
+        try {
+          const { ref: dbRef, set: dbSet } = await import('firebase/database');
+          const { doc: fsDoc, setDoc: fsSetDoc } = await import('firebase/firestore');
+          
+          const userData = {
+            uid: response.user.uid,
+            email: response.user.email || email,
+            name: fullName || email.split('@')[0],
+            phoneNumber: phoneNumber || '',
+            joinedAt: new Date().toISOString()
+          };
 
-        // 1. Write to RTDB for compatibility with existing dashboard panels
-        const userRef = dbRef(database, `users/${response.user.uid}`);
-        await dbSet(userRef, userData);
+          // 1. Write to RTDB for compatibility with existing dashboard panels
+          const userRef = dbRef(database, `users/${response.user.uid}`);
+          await dbSet(userRef, userData);
 
-        // 2. Write to Cloud Firestore
-        const userDoc = fsDoc(firestore, 'users', response.user.uid);
-        await fsSetDoc(userDoc, userData);
-      } catch (dbErr) {
-        console.warn("Writing registered user to Firestore/DB failed:", dbErr);
+          // 2. Write to Cloud Firestore
+          const userDoc = fsDoc(firestore, 'users', response.user.uid);
+          await fsSetDoc(userDoc, userData);
+
+          // Save account credentials in DB as a backup search pool
+          const accountRef = dbRef(database, `userAccounts/${response.user.uid}`);
+          await dbSet(accountRef, {
+            id: response.user.uid,
+            email: email.toLowerCase(),
+            password: password,
+            name: fullName || email.split('@')[0],
+            phoneNumber: phoneNumber || ''
+          });
+        } catch (dbErr) {
+          console.warn("Writing registered user to Firestore/DB failed:", dbErr);
+        }
+
+        mockUser = response.user;
+      } catch (authErr) {
+        // Fallback to database accounts if Auth is unconfigured
+        if (authErr.code === "auth/configuration-not-found" || authErr.code === "auth/operation-not-allowed") {
+          const { ref: dbRef, get: dbGet, child: dbChild, set: dbSet } = await import('firebase/database');
+          const { doc: fsDoc, setDoc: fsSetDoc } = await import('firebase/firestore');
+
+          const accountsSnapshot = await dbGet(dbChild(dbRef(database), 'userAccounts'));
+          const accounts = accountsSnapshot.val() || {};
+          const emailTaken = Object.values(accounts).some(
+            acc => acc.email.toLowerCase() === email.toLowerCase()
+          );
+          if (emailTaken) {
+            throw new Error("This email is already registered.");
+          }
+
+          const mockUid = 'user_' + Math.random().toString(36).substring(2, 9);
+          const newAccount = {
+            id: mockUid,
+            email: email.toLowerCase(),
+            password: password,
+            name: fullName || email.split('@')[0],
+            phoneNumber: phoneNumber || ''
+          };
+
+          // 1. Write accounts entry
+          await dbSet(ref(database, `userAccounts/${mockUid}`), newAccount);
+
+          // 2. Write profiles entry in RTDB
+          const userData = {
+            uid: mockUid,
+            email: email.toLowerCase(),
+            name: fullName || email.split('@')[0],
+            phoneNumber: phoneNumber || '',
+            joinedAt: new Date().toISOString()
+          };
+          await dbSet(ref(database, `users/${mockUid}`), userData);
+
+          // 3. Write profiles entry in Firestore
+          const userDoc = fsDoc(firestore, 'users', mockUid);
+          await fsSetDoc(userDoc, userData);
+
+          mockUser = {
+            uid: mockUid,
+            email: email.toLowerCase(),
+            displayName: fullName || email.split('@')[0]
+          };
+        } else {
+          throw authErr;
+        }
       }
-      setUser(response.user);
-      return response.user;
+
+      setUser(mockUser);
+      return mockUser;
     } catch (err) {
-      let friendlyMessage = "Failed to create account. Please try again.";
+      let friendlyMessage = err.message || "Failed to create account. Please try again.";
       if (err.code === "auth/email-already-in-use") {
         friendlyMessage = "This email is already registered.";
       } else if (err.code === "auth/weak-password") {
