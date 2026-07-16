@@ -22,7 +22,7 @@ export default function RestaurantScreen() {
   // Destructure params passed from card click
   const { 
     id, name, imgUrl, rating, reviews, address, description, dishes, lat, lng, category 
-  } = route.params;
+  } = route.params || {};
 
   const currentRestaurant = { _id: id, name, imgUrl, rating, reviews, address, description, dishes, lat, lng, category };
 

@@ -211,10 +211,10 @@ export const getFeaturedRows = async () => {
     try {
       const restSnapshot = await get(ref(database, 'restaurants'));
       if (restSnapshot.exists()) {
-        const restData = restSnapshot.val();
+        const restData = restSnapshot.val() || {};
         const dbRestaurants = Object.keys(restData)
           .map(key => ({ _id: key, ...restData[key] }))
-          .filter(r => r.verified === true);
+          .filter(r => r && r.verified === true);
         
         // Return default constructed featured rows using live database restaurants
         return [
@@ -300,10 +300,10 @@ export const getRestaurantsByCategory = async (categoryName) => {
     try {
       const restSnapshot = await get(ref(database, 'restaurants'));
       if (restSnapshot.exists()) {
-        const restData = restSnapshot.val();
+        const restData = restSnapshot.val() || {};
         const dbRestaurants = Object.keys(restData)
           .map(key => ({ _id: key, ...restData[key] }))
-          .filter(r => r.verified === true);
+          .filter(r => r && r.verified === true);
         return dbRestaurants.filter(r => r.category === categoryName);
       }
     } catch (e) {
