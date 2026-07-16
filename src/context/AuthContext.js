@@ -1,5 +1,7 @@
 import React, { createContext, useState, useEffect } from 'react';
 import { auth, database, firestore } from '../services/firebase';
+import { ref, set, get, child } from 'firebase/database';
+import { doc, setDoc } from 'firebase/firestore';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -36,8 +38,7 @@ export const AuthProvider = ({ children }) => {
       } catch (authErr) {
         // Fallback to database accounts if Auth is unconfigured
         if (authErr.code === "auth/configuration-not-found" || authErr.code === "auth/operation-not-allowed") {
-          const { ref: dbRef, get: dbGet, child: dbChild } = await import('firebase/database');
-          const accountsSnapshot = await dbGet(dbChild(dbRef(database), 'userAccounts'));
+          const accountsSnapshot = await get(child(ref(database), 'userAccounts'));
           const accounts = accountsSnapshot.val() || {};
           
           const matched = Object.values(accounts).find(
@@ -85,9 +86,6 @@ export const AuthProvider = ({ children }) => {
         
         // Write profile to database (Realtime Database & Cloud Firestore)
         try {
-          const { ref: dbRef, set: dbSet } = await import('firebase/database');
-          const { doc: fsDoc, setDoc: fsSetDoc } = await import('firebase/firestore');
-          
           const userData = {
             uid: response.user.uid,
             email: response.user.email || email,
@@ -97,16 +95,16 @@ export const AuthProvider = ({ children }) => {
           };
 
           // 1. Write to RTDB for compatibility with existing dashboard panels
-          const userRef = dbRef(database, `users/${response.user.uid}`);
-          await dbSet(userRef, userData);
+          const userRef = ref(database, `users/${response.user.uid}`);
+          await set(userRef, userData);
 
           // 2. Write to Cloud Firestore
-          const userDoc = fsDoc(firestore, 'users', response.user.uid);
-          await fsSetDoc(userDoc, userData);
+          const userDoc = doc(firestore, 'users', response.user.uid);
+          await setDoc(userDoc, userData);
 
           // Save account credentials in DB as a backup search pool
-          const accountRef = dbRef(database, `userAccounts/${response.user.uid}`);
-          await dbSet(accountRef, {
+          const accountRef = ref(database, `userAccounts/${response.user.uid}`);
+          await set(accountRef, {
             id: response.user.uid,
             email: email.toLowerCase(),
             password: password,
@@ -121,10 +119,7 @@ export const AuthProvider = ({ children }) => {
       } catch (authErr) {
         // Fallback to database accounts if Auth is unconfigured
         if (authErr.code === "auth/configuration-not-found" || authErr.code === "auth/operation-not-allowed") {
-          const { ref: dbRef, get: dbGet, child: dbChild, set: dbSet } = await import('firebase/database');
-          const { doc: fsDoc, setDoc: fsSetDoc } = await import('firebase/firestore');
-
-          const accountsSnapshot = await dbGet(dbChild(dbRef(database), 'userAccounts'));
+          const accountsSnapshot = await get(child(ref(database), 'userAccounts'));
           const accounts = accountsSnapshot.val() || {};
           const emailTaken = Object.values(accounts).some(
             acc => acc.email.toLowerCase() === email.toLowerCase()
@@ -143,7 +138,7 @@ export const AuthProvider = ({ children }) => {
           };
 
           // 1. Write accounts entry
-          await dbSet(ref(database, `userAccounts/${mockUid}`), newAccount);
+          await set(ref(database, `userAccounts/${mockUid}`), newAccount);
 
           // 2. Write profiles entry in RTDB
           const userData = {
@@ -153,11 +148,11 @@ export const AuthProvider = ({ children }) => {
             phoneNumber: phoneNumber || '',
             joinedAt: new Date().toISOString()
           };
-          await dbSet(ref(database, `users/${mockUid}`), userData);
+          await set(ref(database, `users/${mockUid}`), userData);
 
           // 3. Write profiles entry in Firestore
-          const userDoc = fsDoc(firestore, 'users', mockUid);
-          await fsSetDoc(userDoc, userData);
+          const userDoc = doc(firestore, 'users', mockUid);
+          await setDoc(userDoc, userData);
 
           mockUser = {
             uid: mockUid,
@@ -214,9 +209,6 @@ export const AuthProvider = ({ children }) => {
       const response = await confirmationResult.confirm(code);
       // Write profile to database (Realtime Database & Cloud Firestore)
       try {
-        const { ref: dbRef, set: dbSet } = await import('firebase/database');
-        const { doc: fsDoc, setDoc: fsSetDoc } = await import('firebase/firestore');
-        
         const userData = {
           uid: response.user.uid,
           email: response.user.email || 'Phone User',
@@ -225,12 +217,12 @@ export const AuthProvider = ({ children }) => {
         };
 
         // 1. Write to RTDB for compatibility with dashboards
-        const userRef = dbRef(database, `users/${response.user.uid}`);
-        await dbSet(userRef, userData);
+        const userRef = ref(database, `users/${response.user.uid}`);
+        await set(userRef, userData);
 
         // 2. Write to Cloud Firestore
-        const userDoc = fsDoc(firestore, 'users', response.user.uid);
-        await fsSetDoc(userDoc, userData);
+        const userDoc = doc(firestore, 'users', response.user.uid);
+        await setDoc(userDoc, userData);
       } catch (dbErr) {
         console.warn("Writing phone user to Firestore/DB failed:", dbErr);
       }
@@ -263,9 +255,6 @@ export const AuthProvider = ({ children }) => {
     
     // Write profile to database (Realtime Database & Cloud Firestore)
     try {
-      const { ref: dbRef, set: dbSet } = await import('firebase/database');
-      const { doc: fsDoc, setDoc: fsSetDoc } = await import('firebase/firestore');
-      
       const userData = {
         uid: guestUid,
         email: 'guest@chow.com',
@@ -273,12 +262,12 @@ export const AuthProvider = ({ children }) => {
       };
 
       // 1. Write to RTDB for compatibility with dashboards
-      const userRef = dbRef(database, `users/${guestUid}`);
-      await dbSet(userRef, userData);
+      const userRef = ref(database, `users/${guestUid}`);
+      await set(userRef, userData);
 
       // 2. Write to Cloud Firestore
-      const userDoc = fsDoc(firestore, 'users', guestUid);
-      await fsSetDoc(userDoc, userData);
+      const userDoc = doc(firestore, 'users', guestUid);
+      await setDoc(userDoc, userData);
     } catch (dbErr) {
       console.warn("Writing guest user to Firestore/DB failed:", dbErr);
     }
