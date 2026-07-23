@@ -43,32 +43,41 @@ export const AuthProvider = ({ children }) => {
     try {
       try {
         const response = await signInWithEmailAndPassword(auth, email, password);
-        setUser(response.user);
-        return response.user;
+        // On successful auth sign-in, fetch their profile from RTDB to make sure we have their address, name, etc.
+        const userSnapshot = await get(ref(database, `users/${response.user.uid}`));
+        const profileData = userSnapshot.val() || {};
+        const mergedUser = {
+          uid: response.user.uid,
+          email: response.user.email,
+          displayName: profileData.name || response.user.displayName || response.user.email.split('@')[0],
+          phoneNumber: profileData.phoneNumber || '',
+          address: profileData.address || ''
+        };
+        setUser(mergedUser);
+        return mergedUser;
       } catch (authErr) {
-        // Fallback to database accounts if Auth is unconfigured
-        if (authErr.code === "auth/configuration-not-found" || authErr.code === "auth/operation-not-allowed") {
-          const accountsSnapshot = await get(child(ref(database), 'userAccounts'));
-          const accounts = accountsSnapshot.val() || {};
-          
-          const matched = Object.values(accounts).find(
-            acc => acc.email.toLowerCase() === email.toLowerCase() && acc.password === password
-          );
+        // Fall back to database accounts for ALL auth errors (e.g. user-not-found, invalid-credential, wrong-password),
+        // not just configuration-not-found. This guarantees database-created users can sign in!
+        const accountsSnapshot = await get(child(ref(database), 'userAccounts'));
+        const accounts = accountsSnapshot.val() || {};
+        
+        const matched = Object.values(accounts).find(
+          acc => acc.email.toLowerCase() === email.toLowerCase() && acc.password === password
+        );
 
-          if (!matched) {
-            throw new Error("Invalid email or password.");
-          }
-
-          const mockUser = {
-            uid: matched.id,
-            email: matched.email,
-            displayName: matched.name || matched.email.split('@')[0]
-          };
-          setUser(mockUser);
-          return mockUser;
-        } else {
-          throw authErr;
+        if (!matched) {
+          throw new Error("Invalid email or password.");
         }
+
+        const mockUser = {
+          uid: matched.id,
+          email: matched.email,
+          displayName: matched.name || matched.email.split('@')[0],
+          phoneNumber: matched.phoneNumber || '',
+          address: matched.address || ''
+        };
+        setUser(mockUser);
+        return mockUser;
       }
     } catch (err) {
       let friendlyMessage = err.message || "Failed to sign in. Please check your credentials.";
