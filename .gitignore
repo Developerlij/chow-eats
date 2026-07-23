@@ -39,7 +39,12 @@ yarn-error.*
 # generated native folders
 /ios
 /android
-/*.apk
+**/*.apk
+**/android/app/build/
+**/android/.gradle/
+**/android/build/
+.cxx/
+**/android/.cxx/
 
 # generated native folders for mobile wrappers
 /admin-mobile/android
