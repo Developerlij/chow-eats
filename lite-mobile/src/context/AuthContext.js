@@ -9,6 +9,7 @@ import {
   onAuthStateChanged,
   signInWithPhoneNumber
 } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const AuthContext = createContext();
 
@@ -18,10 +19,43 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Sync React user state with Firebase Auth state
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
+    // Load locally persisted user session on startup
+    const loadPersistedUser = async () => {
+      try {
+        const savedUserStr = await AsyncStorage.getItem('@chow_user_session');
+        if (savedUserStr) {
+          const savedUser = JSON.parse(savedUserStr);
+          setUser(savedUser);
+        }
+      } catch (err) {
+        console.warn("Failed to load persisted user session on startup:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPersistedUser();
+
+    // Also sync with Firebase Auth state
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        try {
+          const userSnapshot = await get(ref(database, `users/${currentUser.uid}`));
+          const profileData = userSnapshot.val() || {};
+          const mergedUser = {
+            uid: currentUser.uid,
+            email: currentUser.email || profileData.email || '',
+            displayName: profileData.name || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User'),
+            phoneNumber: profileData.phoneNumber || currentUser.phoneNumber || '',
+            address: profileData.address || '',
+            isAnonymous: currentUser.isAnonymous
+          };
+          setUser(mergedUser);
+          await AsyncStorage.setItem('@chow_user_session', JSON.stringify(mergedUser));
+        } catch (err) {
+          console.warn("Failed to sync profile onAuthStateChanged:", err);
+        }
+      }
     });
 
     return () => unsubscribe();
@@ -37,6 +71,7 @@ export const AuthProvider = ({ children }) => {
         displayName: email.split('@')[0]
       };
       setUser(mockUser);
+      await AsyncStorage.setItem('@chow_user_session', JSON.stringify(mockUser));
       setLoading(false);
       return mockUser;
     }
@@ -54,10 +89,10 @@ export const AuthProvider = ({ children }) => {
           address: profileData.address || ''
         };
         setUser(mergedUser);
+        await AsyncStorage.setItem('@chow_user_session', JSON.stringify(mergedUser));
         return mergedUser;
       } catch (authErr) {
-        // Fall back to database accounts for ALL auth errors (e.g. user-not-found, invalid-credential, wrong-password),
-        // not just configuration-not-found. This guarantees database-created users can sign in!
+        // Fall back to database accounts for ALL auth errors (e.g. user-not-found, invalid-credential, wrong-password)
         const accountsSnapshot = await get(child(ref(database), 'userAccounts'));
         const accounts = accountsSnapshot.val() || {};
         
@@ -77,6 +112,7 @@ export const AuthProvider = ({ children }) => {
           address: matched.address || ''
         };
         setUser(mockUser);
+        await AsyncStorage.setItem('@chow_user_session', JSON.stringify(mockUser));
         return mockUser;
       }
     } catch (err) {
@@ -106,6 +142,7 @@ export const AuthProvider = ({ children }) => {
         address: address
       };
       setUser(mockUser);
+      await AsyncStorage.setItem('@chow_user_session', JSON.stringify(mockUser));
       setLoading(false);
       return mockUser;
     }
@@ -147,7 +184,13 @@ export const AuthProvider = ({ children }) => {
           console.warn("Writing registered user to Firestore/DB failed:", dbErr);
         }
 
-        mockUser = response.user;
+        mockUser = {
+          uid: response.user.uid,
+          email: response.user.email || email,
+          displayName: fullName || response.user.displayName || email.split('@')[0],
+          phoneNumber: phoneNumber || '',
+          address: address || ''
+        };
       } catch (authErr) {
         // Fallback to database accounts if Auth is unconfigured
         if (authErr.code === "auth/configuration-not-found" || authErr.code === "auth/operation-not-allowed") {
@@ -200,6 +243,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       setUser(mockUser);
+      await AsyncStorage.setItem('@chow_user_session', JSON.stringify(mockUser));
       return mockUser;
     } catch (err) {
       let friendlyMessage = err.message || "Failed to create account. Please try again.";
@@ -224,11 +268,9 @@ export const AuthProvider = ({ children }) => {
       const confirmation = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
       return confirmation;
     } catch (err) {
-      let friendlyMessage = "Failed to send OTP verification SMS.";
+      let friendlyMessage = "Failed to send OTP SMS.";
       if (err.code === "auth/invalid-phone-number") {
-        friendlyMessage = "Please enter a valid phone number with country code (e.g. +2348011112222).";
-      } else if (err.code === "auth/too-many-requests") {
-        friendlyMessage = "Too many SMS requests. Please try again later.";
+        friendlyMessage = "Please enter a valid phone number.";
       }
       setError(friendlyMessage);
       throw new Error(friendlyMessage);
@@ -242,6 +284,7 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const response = await confirmationResult.confirm(code);
+      
       // Write profile to database (Realtime Database & Cloud Firestore)
       try {
         const userData = {
@@ -261,7 +304,13 @@ export const AuthProvider = ({ children }) => {
       } catch (dbErr) {
         console.warn("Writing phone user to Firestore/DB failed:", dbErr);
       }
-      setUser(response.user);
+      const userObj = {
+        uid: response.user.uid,
+        email: response.user.email || 'Phone User',
+        displayName: 'Phone User'
+      };
+      setUser(userObj);
+      await AsyncStorage.setItem('@chow_user_session', JSON.stringify(userObj));
       return response.user;
     } catch (err) {
       let friendlyMessage = "Incorrect verification code. Please check and try again.";
@@ -310,6 +359,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     setUser(guestUser);
+    await AsyncStorage.setItem('@chow_user_session', JSON.stringify(guestUser));
     setLoading(false);
     return guestUser;
   };
@@ -318,6 +368,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       await signOut(auth);
+      await AsyncStorage.removeItem('@chow_user_session');
       setUser(null);
     } catch (err) {
       console.error("Error signing out from Firebase:", err);
