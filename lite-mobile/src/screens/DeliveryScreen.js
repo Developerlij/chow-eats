@@ -82,6 +82,10 @@ export default function DeliveryScreen() {
     image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
   });
 
+  // Real-time Database Distance & Time calculated on Backend (Driver App)
+  const [dbDistance, setDbDistance] = useState(null);
+  const [dbTimeRemaining, setDbTimeRemaining] = useState(null);
+
   // Real-time Chat States & Refs
   const [isChatVisible, setIsChatVisible] = useState(false);
   const [chatInput, setChatInput] = useState('');
@@ -229,6 +233,8 @@ export default function DeliveryScreen() {
               longitude: restaurantCoords.longitude
             });
           }
+          if (data.distanceToCustomer !== undefined) setDbDistance(data.distanceToCustomer);
+          if (data.timeRemaining !== undefined) setDbTimeRemaining(data.timeRemaining);
         }
       });
       return () => unsubscribe();
@@ -379,6 +385,10 @@ export default function DeliveryScreen() {
       return `${mins}:${secsStr}`;
     }
 
+    if (dbTimeRemaining !== null) {
+      return `${dbTimeRemaining} Minutes`;
+    }
+
     const isHeadingToStore = 
       orderStatus === "Preparing" || 
       orderStatus === "Preparing Order" || 
@@ -420,6 +430,15 @@ export default function DeliveryScreen() {
       }
     }
     
+    if (dbTimeRemaining !== null && dbDistance !== null) {
+      if (orderStatus === "Preparing" || orderStatus === "Preparing Order") {
+        return `Rider heading to store (approx. ${dbTimeRemaining} mins remaining)`;
+      }
+      if (orderStatus === "Rider Picked Up Order" || orderStatus === "Driver on the way") {
+        return `Rider heading to you (${dbDistance} km away - ${dbTimeRemaining} mins remaining)`;
+      }
+    }
+
     if (orderStatus === "Preparing" || orderStatus === "Preparing Order") {
       const minsToStore = getRemainingTime(
         riderLocation.latitude,

@@ -139,7 +139,44 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [activeOrder]);
+  const getDistanceKm = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
 
+  const updateDeliveryDistanceAndTime = async (riderLat, riderLng, custLat, custLng) => {
+    if (!activeOrder) return;
+    try {
+      const dist = getDistanceKm(riderLat, riderLng, custLat, custLng);
+      // Assuming average rider speed is 30 km/h: time in minutes = (distance / 30) * 60 minutes
+      const timeRemaining = Math.max(1, Math.ceil(dist / 30 * 60)); 
+      
+      await update(ref(database, `orders/${activeOrder.id}`), {
+        distanceToCustomer: parseFloat(dist.toFixed(2)),
+        timeRemaining: timeRemaining
+      });
+    } catch (err) {
+      console.error("Failed to update distance/time calculations in database:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeOrder && gpsCoords && customerCoords) {
+      updateDeliveryDistanceAndTime(
+        gpsCoords.latitude,
+        gpsCoords.longitude,
+        customerCoords.latitude,
+        customerCoords.longitude
+      );
+    }
+  }, [gpsCoords, customerCoords, activeOrder?.id]);
   // Handle GPS location streaming
   useEffect(() => {
     if (!driverProfile || driverProfile.status !== 'Approved' || !activeOrder || activeOrder.status === 'Order Delivered' || isSimulating) return;
@@ -420,8 +457,8 @@ export default function App() {
     const initialRiderLat = storeLat + 0.008;
     const initialRiderLng = storeLng - 0.008;
 
-    const userLat = 37.7749;
-    const userLng = -122.4194;
+    const userLat = customerCoords?.latitude || activeOrder.deliveryLat || 37.7749;
+    const userLng = customerCoords?.longitude || activeOrder.deliveryLng || -122.4194;
 
     let step = 0;
     const totalSteps = 25; // 10 steps to store, 12 steps to user, 3 steps nearby buffer
@@ -806,9 +843,18 @@ export default function App() {
                         <div>
                           <strong style={{ display: 'block', color: '#FFF' }}>Customer Live GPS Feed:</strong>
                           {customerCoords ? (
-                            <span style={{ fontSize: '13px', color: '#0288D1', fontFamily: 'monospace' }}>
-                              📍 {customerCoords.latitude.toFixed(5)}, {customerCoords.longitude.toFixed(5)} (Streaming live)
-                            </span>
+                            <>
+                              <span style={{ fontSize: '13px', color: '#0288D1', fontFamily: 'monospace' }}>
+                                📍 {customerCoords.latitude.toFixed(5)}, {customerCoords.longitude.toFixed(5)} (Streaming live)
+                              </span>
+                              {gpsCoords && (
+                                <div style={{ marginTop: '4px', fontSize: '13px', color: '#06C167', fontWeight: '500' }}>
+                                  🚗 Distance: {getDistanceKm(gpsCoords.latitude, gpsCoords.longitude, customerCoords.latitude, customerCoords.longitude).toFixed(2)} km
+                                  {' | '}
+                                  ⏱️ ETA: {Math.max(1, Math.ceil(getDistanceKm(gpsCoords.latitude, gpsCoords.longitude, customerCoords.latitude, customerCoords.longitude) / 30 * 60))} mins remaining
+                                </div>
+                              )}
+                            </>
                           ) : (
                             <span style={{ fontSize: '13px', color: '#777' }}>
                               Awaiting customer GPS coordinates ping...
