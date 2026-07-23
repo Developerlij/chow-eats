@@ -31,8 +31,6 @@ if (Platform.OS === 'web') {
 }
 
 export const auth = firebaseAuth;
-export const isMockFirebase = typeof process !== 'undefined' && 
-                              process.env && 
-                              process.env.EXPO_PUBLIC_LITE_MODE === 'true';
+export const isMockFirebase = false;
 
 export default app;

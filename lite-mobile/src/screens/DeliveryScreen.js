@@ -20,7 +20,7 @@ import DeliveryMap from '../components/DeliveryMap';
 import { BasketContext } from '../context/BasketContext';
 import { AuthContext } from '../context/AuthContext';
 import FooterNavbar from '../components/FooterNavbar';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, push, set } from 'firebase/database';
 import { database, isMockFirebase } from '../../firebase';
 let Notifications = null;
 try {
@@ -98,54 +98,89 @@ export default function DeliveryScreen() {
   const handleSendMessage = () => {
     if (!chatInput.trim()) return;
 
-    const userMessageId = Math.random().toString(36).substring(2, 9);
-    const userMsgObj = {
-      id: userMessageId,
-      text: chatInput.trim(),
-      sender: 'user',
-      timestamp: new Date()
-    };
-
-    setChatMessages(prev => [...prev, userMsgObj]);
-    const typedText = chatInput.trim().toLowerCase();
+    const messageText = chatInput.trim();
     setChatInput('');
 
-    // Simulate Rider Auto-Response:
-    setTimeout(() => {
-      let replyText = "Got it! Thanks.";
-
-      if (typedText.includes("extra") || typedText.includes("sauce") || typedText.includes("condiment")) {
-        replyText = "I will request extra sauces from the merchant right now if they haven't sealed it yet!";
-      } else if (typedText.includes("gate") || typedText.includes("code") || typedText.includes("door") || typedText.includes("bell") || typedText.includes("ring")) {
-        replyText = "Understood. Thanks for the drop-off details!";
-      } else if (typedText.includes("hot") || typedText.includes("cold") || typedText.includes("fresh")) {
-        replyText = "I've got it inside my thermal insulated bag, so it will stay fresh and hot!";
-      } else if (typedText.includes("where") || typedText.includes("status") || typedText.includes("far")) {
-        const elapsed = 1500 - timeLeft;
-        if (elapsed <= 600) {
-          replyText = "I'm still at the restaurant waiting for the kitchen to finish preparing your food.";
-        } else {
-          replyText = "I'm on the road heading to your address now!";
-        }
-      } else {
-        const elapsed = 1500 - timeLeft;
-        if (elapsed <= 600) {
-          replyText = "Sure, I'm heading to the restaurant to collect your fresh food now.";
-        } else if (elapsed <= 1380) {
-          replyText = "Alright! I've picked up your order and I'm riding your way.";
-        } else {
-          replyText = "I'm almost at your door, see you in a minute!";
-        }
-      }
-
-      setChatMessages(prev => [...prev, {
-        id: Math.random().toString(36).substring(2, 9),
-        text: replyText,
-        sender: 'rider',
+    if (!isMockFirebase && database && activeOrderId) {
+      // Real Firebase RTDB Chat push
+      const messagesRef = ref(database, `orders/${activeOrderId}/messages`);
+      const newMsgRef = push(messagesRef);
+      set(newMsgRef, {
+        id: newMsgRef.key,
+        text: messageText,
+        sender: 'user',
+        timestamp: Date.now()
+      }).catch(err => {
+        console.warn("Failed to send real-time database chat message:", err);
+      });
+    } else {
+      // Mock Sandbox Mode local state & auto-responder
+      const userMessageId = Math.random().toString(36).substring(2, 9);
+      const userMsgObj = {
+        id: userMessageId,
+        text: messageText,
+        sender: 'user',
         timestamp: new Date()
-      }]);
-    }, 2000); // 2 second realistic delay
+      };
+
+      setChatMessages(prev => [...prev, userMsgObj]);
+      const typedText = messageText.toLowerCase();
+
+      // Simulate Rider Auto-Response:
+      setTimeout(() => {
+        let replyText = "Got it! Thanks.";
+
+        if (typedText.includes("extra") || typedText.includes("sauce") || typedText.includes("condiment")) {
+          replyText = "I will request extra sauces from the merchant right now if they haven't sealed it yet!";
+        } else if (typedText.includes("gate") || typedText.includes("code") || typedText.includes("door") || typedText.includes("bell") || typedText.includes("ring")) {
+          replyText = "Understood. Thanks for the drop-off details!";
+        } else if (typedText.includes("hot") || typedText.includes("cold") || typedText.includes("fresh")) {
+          replyText = "I've got it inside my thermal insulated bag, so it will stay fresh and hot!";
+        } else if (typedText.includes("where") || typedText.includes("status") || typedText.includes("far")) {
+          const elapsed = 1500 - timeLeft;
+          if (elapsed <= 600) {
+            replyText = "I'm still at the restaurant waiting for the kitchen to finish preparing your food.";
+          } else {
+            replyText = "I'm on the road heading to your address now!";
+          }
+        } else {
+          const elapsed = 1500 - timeLeft;
+          if (elapsed <= 600) {
+            replyText = "Sure, I'm heading to the restaurant to collect your fresh food now.";
+          } else if (elapsed <= 1380) {
+            replyText = "Alright! I've picked up your order and I'm riding your way.";
+          } else {
+            replyText = "I'm almost at your door, see you in a minute!";
+          }
+        }
+
+        setChatMessages(prev => [...prev, {
+          id: Math.random().toString(36).substring(2, 9),
+          text: replyText,
+          sender: 'rider',
+          timestamp: new Date()
+        }]);
+      }, 2000); // 2 second realistic delay
+    }
   };
+
+  // Real-time Chat Listener for real Firebase database mode
+  useEffect(() => {
+    if (!isMockFirebase && database && activeOrderId) {
+      const messagesRef = ref(database, `orders/${activeOrderId}/messages`);
+      const unsubscribeChat = onValue(messagesRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          const loadedMsgs = Object.values(data).map(msg => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }));
+          setChatMessages(loadedMsgs);
+        }
+      });
+      return () => unsubscribeChat();
+    }
+  }, [activeOrderId]);
 
   // 1. Fetch user live coordinates from Firebase RTDB
   useEffect(() => {
