@@ -9,7 +9,10 @@ import {
   Platform,
   Linking,
   ActivityIndicator,
-  Alert
+  Alert,
+  Modal,
+  ScrollView,
+  TextInput
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -78,6 +81,71 @@ export default function DeliveryScreen() {
     phone: '1234567890',
     image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
   });
+
+  // Real-time Chat States & Refs
+  const [isChatVisible, setIsChatVisible] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState([
+    {
+      id: '1',
+      text: "Hello! I'm your delivery partner. I'll keep you updated on your order.",
+      sender: 'rider',
+      timestamp: new Date()
+    }
+  ]);
+  const scrollViewRef = React.useRef(null);
+
+  const handleSendMessage = () => {
+    if (!chatInput.trim()) return;
+
+    const userMessageId = Math.random().toString(36).substring(2, 9);
+    const userMsgObj = {
+      id: userMessageId,
+      text: chatInput.trim(),
+      sender: 'user',
+      timestamp: new Date()
+    };
+
+    setChatMessages(prev => [...prev, userMsgObj]);
+    const typedText = chatInput.trim().toLowerCase();
+    setChatInput('');
+
+    // Simulate Rider Auto-Response:
+    setTimeout(() => {
+      let replyText = "Got it! Thanks.";
+
+      if (typedText.includes("extra") || typedText.includes("sauce") || typedText.includes("condiment")) {
+        replyText = "I will request extra sauces from the merchant right now if they haven't sealed it yet!";
+      } else if (typedText.includes("gate") || typedText.includes("code") || typedText.includes("door") || typedText.includes("bell") || typedText.includes("ring")) {
+        replyText = "Understood. Thanks for the drop-off details!";
+      } else if (typedText.includes("hot") || typedText.includes("cold") || typedText.includes("fresh")) {
+        replyText = "I've got it inside my thermal insulated bag, so it will stay fresh and hot!";
+      } else if (typedText.includes("where") || typedText.includes("status") || typedText.includes("far")) {
+        const elapsed = 1500 - timeLeft;
+        if (elapsed <= 600) {
+          replyText = "I'm still at the restaurant waiting for the kitchen to finish preparing your food.";
+        } else {
+          replyText = "I'm on the road heading to your address now!";
+        }
+      } else {
+        const elapsed = 1500 - timeLeft;
+        if (elapsed <= 600) {
+          replyText = "Sure, I'm heading to the restaurant to collect your fresh food now.";
+        } else if (elapsed <= 1380) {
+          replyText = "Alright! I've picked up your order and I'm riding your way.";
+        } else {
+          replyText = "I'm almost at your door, see you in a minute!";
+        }
+      }
+
+      setChatMessages(prev => [...prev, {
+        id: Math.random().toString(36).substring(2, 9),
+        text: replyText,
+        sender: 'rider',
+        timestamp: new Date()
+      }]);
+    }, 2000); // 2 second realistic delay
+  };
 
   // 1. Fetch user live coordinates from Firebase RTDB
   useEffect(() => {
@@ -417,13 +485,97 @@ export default function DeliveryScreen() {
             <TouchableOpacity 
               style={[styles.actionBtnCircle, { marginLeft: 12 }, !hasRider && { opacity: 0.5 }]}
               disabled={!hasRider}
+              onPress={() => setIsChatVisible(true)}
             >
-              <Ionicons name="chatbubble" size={20} color="#888888" />
+              <Ionicons name="chatbubble" size={20} color="#06C167" />
             </TouchableOpacity>
           </View>
         </View>
       </SafeAreaView>
       <FooterNavbar activeTab="Tracking" />
+
+      {/* Chat Modal */}
+      <Modal
+        visible={isChatVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setIsChatVisible(false)}
+      >
+        <SafeAreaView style={styles.chatContainer}>
+          {/* Chat Header */}
+          <View style={styles.chatHeader}>
+            <TouchableOpacity onPress={() => setIsChatVisible(false)} style={styles.chatCloseBtn}>
+              <Ionicons name="chevron-back" size={26} color="#06C167" />
+            </TouchableOpacity>
+            
+            <View style={styles.chatHeaderRiderInfo}>
+              <Image source={{ uri: riderInfo.image }} style={styles.chatRiderAvatar} />
+              <View>
+                <Text style={styles.chatRiderName}>{riderInfo.name}</Text>
+                <Text style={styles.chatRiderStatus}>Active Delivery Partner</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity onPress={handleCallRider} style={styles.chatCallBtn}>
+              <Ionicons name="call" size={20} color="#06C167" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Chat Messages */}
+          <ScrollView 
+            style={styles.chatMessagesList}
+            contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+            ref={scrollViewRef}
+            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+          >
+            {chatMessages.map((msg) => {
+              const isUser = msg.sender === 'user';
+              return (
+                <View 
+                  key={msg.id} 
+                  style={[
+                    styles.messageRow, 
+                    isUser ? styles.messageRowUser : styles.messageRowRider
+                  ]}
+                >
+                  {!isUser && (
+                    <Image source={{ uri: riderInfo.image }} style={styles.messageAvatar} />
+                  )}
+                  <View 
+                    style={[
+                      styles.messageBubble, 
+                      isUser ? styles.bubbleUser : styles.bubbleRider
+                    ]}
+                  >
+                    <Text style={isUser ? styles.bubbleTextUser : styles.bubbleTextRider}>
+                      {msg.text}
+                    </Text>
+                    <Text style={isUser ? styles.timeTextUser : styles.timeTextRider}>
+                      {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </ScrollView>
+
+          {/* Chat Input Bar */}
+          <View style={styles.chatInputRow}>
+            <TextInput
+              style={styles.chatInputBox}
+              placeholder="Type a message to rider..."
+              placeholderTextColor="#999"
+              value={chatInput}
+              onChangeText={setChatInput}
+              onSubmitEditing={handleSendMessage}
+              returnKeyType="send"
+            />
+            <TouchableOpacity onPress={handleSendMessage} style={styles.chatSendBtn}>
+              <Ionicons name="send" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
@@ -587,5 +739,133 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
+  },
+  chatContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  chatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEEEEE',
+    backgroundColor: '#FFFFFF',
+  },
+  chatCloseBtn: {
+    padding: 4,
+    marginRight: 8,
+  },
+  chatHeaderRiderInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  chatRiderAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    marginRight: 10,
+    backgroundColor: '#EEEEEE',
+  },
+  chatRiderName: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+  },
+  chatRiderStatus: {
+    fontSize: 12,
+    color: '#06C167',
+    fontWeight: '500',
+  },
+  chatCallBtn: {
+    padding: 8,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 20,
+  },
+  chatMessagesList: {
+    flex: 1,
+    backgroundColor: '#FAFAFA',
+  },
+  messageRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    alignItems: 'flex-end',
+  },
+  messageRowUser: {
+    justifyContent: 'flex-end',
+  },
+  messageRowRider: {
+    justifyContent: 'flex-start',
+  },
+  messageAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+    backgroundColor: '#EEEEEE',
+  },
+  messageBubble: {
+    maxWidth: '75%',
+    padding: 12,
+    borderRadius: 16,
+  },
+  bubbleUser: {
+    backgroundColor: '#06C167',
+    borderBottomRightRadius: 4,
+  },
+  bubbleRider: {
+    backgroundColor: '#EAEAEA',
+    borderBottomLeftRadius: 4,
+  },
+  bubbleTextUser: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  bubbleTextRider: {
+    color: '#1A1A1A',
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  timeTextUser: {
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.7)',
+    alignSelf: 'flex-end',
+    marginTop: 4,
+  },
+  timeTextRider: {
+    fontSize: 9,
+    color: '#888888',
+    alignSelf: 'flex-end',
+    marginTop: 4,
+  },
+  chatInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
+    backgroundColor: '#FFFFFF',
+  },
+  chatInputBox: {
+    flex: 1,
+    height: 40,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    fontSize: 14,
+    color: '#1A1A1A',
+    marginRight: 10,
+  },
+  chatSendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#06C167',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
