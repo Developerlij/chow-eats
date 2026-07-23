@@ -39,18 +39,34 @@ export default function LoginScreen() {
             let addressObj = null;
             if (Platform.OS === 'web') {
               try {
+                // Try BigDataCloud Client API first (CORS & browser friendly)
                 const response = await fetch(
-                  `https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.coords.latitude}&lon=${loc.coords.longitude}&zoom=18&addressdetails=1`
+                  `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${loc.coords.latitude}&longitude=${loc.coords.longitude}&localityLanguage=en`
                 );
                 const data = await response.json();
-                if (data && data.address) {
+                if (data) {
                   addressObj = {
-                    city: data.address.city || data.address.town || data.address.village || data.address.suburb || "",
-                    street: data.address.road || data.address.pedestrian || data.address.suburb || ""
+                    city: data.city || data.locality || data.principalSubdivision || "",
+                    street: data.localityInfo?.informative?.[0]?.name || data.locality || ""
                   };
                 }
               } catch (webGeocodeErr) {
-                console.warn("Web reverse geocoding via Nominatim failed on Signup:", webGeocodeErr);
+                console.warn("Web reverse geocoding via BigDataCloud failed on Signup, trying Nominatim:", webGeocodeErr);
+                try {
+                  // Nominatim fallback geocoding
+                  const response = await fetch(
+                    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.coords.latitude}&lon=${loc.coords.longitude}&zoom=18&addressdetails=1`
+                  );
+                  const data = await response.json();
+                  if (data && data.address) {
+                    addressObj = {
+                      city: data.address.city || data.address.town || data.address.village || data.address.suburb || "",
+                      street: data.address.road || data.address.pedestrian || data.address.suburb || ""
+                    };
+                  }
+                } catch (nominatimErr) {
+                  console.warn("Web reverse geocoding via Nominatim fallback failed on Signup:", nominatimErr);
+                }
               }
             }
 
@@ -503,11 +519,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0FAF4',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 3,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 10px rgba(0, 0, 0, 0.1)',
+      },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 3,
+      }
+    }),
   },
   title: {
     fontSize: 28,

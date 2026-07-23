@@ -43,19 +43,34 @@ export default function HomeScreen() {
             let addressObj = null;
             if (Platform.OS === 'web') {
               try {
-                // Nominatim free geocoding API for browsers
+                // Try BigDataCloud Client API first (CORS & browser friendly)
                 const response = await fetch(
-                  `https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.coords.latitude}&lon=${loc.coords.longitude}&zoom=18&addressdetails=1`
+                  `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${loc.coords.latitude}&longitude=${loc.coords.longitude}&localityLanguage=en`
                 );
                 const data = await response.json();
-                if (data && data.address) {
+                if (data) {
                   addressObj = {
-                    city: data.address.city || data.address.town || data.address.village || data.address.suburb || "",
-                    street: data.address.road || data.address.pedestrian || data.address.suburb || ""
+                    city: data.city || data.locality || data.principalSubdivision || "",
+                    street: data.localityInfo?.informative?.[0]?.name || data.locality || ""
                   };
                 }
               } catch (webGeocodeErr) {
-                console.warn("Web reverse geocoding via Nominatim failed:", webGeocodeErr);
+                console.warn("Web reverse geocoding via BigDataCloud failed, trying Nominatim:", webGeocodeErr);
+                try {
+                  // Nominatim free geocoding API fallback
+                  const response = await fetch(
+                    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.coords.latitude}&lon=${loc.coords.longitude}&zoom=18&addressdetails=1`
+                  );
+                  const data = await response.json();
+                  if (data && data.address) {
+                    addressObj = {
+                      city: data.address.city || data.address.town || data.address.village || data.address.suburb || "",
+                      street: data.address.road || data.address.pedestrian || data.address.suburb || ""
+                    };
+                  }
+                } catch (nominatimErr) {
+                  console.warn("Web reverse geocoding via Nominatim fallback failed:", nominatimErr);
+                }
               }
             }
 
