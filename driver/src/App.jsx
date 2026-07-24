@@ -59,6 +59,11 @@ export default function App() {
   const [uploadProgress, setUploadProgress] = useState('');
   const [formError, setFormError] = useState('');
 
+  // Profile Picture Upload first-time logic for Driver
+  const [showDriverPicPrompt, setShowDriverPicPrompt] = useState(false);
+  const [promptImage, setPromptImage] = useState('');
+  const [promptUploadProgress, setPromptUploadProgress] = useState('');
+
   // 1. Load active account session from localStorage on startup
   useEffect(() => {
     const saved = localStorage.getItem('chow_rider_session');
@@ -91,6 +96,64 @@ export default function App() {
 
     return () => unsubscribe();
   }, [session]);
+
+  useEffect(() => {
+    if (session && driverProfile && driverProfile.status === 'Approved') {
+      if (!driverProfile.image) {
+        const prompted = localStorage.getItem(`prompted_driver_pic_${session.id}`);
+        if (!prompted) {
+          setShowDriverPicPrompt(true);
+        }
+      }
+    }
+  }, [session, driverProfile]);
+
+  const handlePromptImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setPromptUploadProgress('Processing...');
+    
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      setPromptImage(reader.result);
+      setPromptUploadProgress('Ready (local)!');
+
+      try {
+        const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+        const fileRef = sRef(storage, `riders/${Date.now()}_${file.name}`);
+        
+        setPromptUploadProgress('Uploading...');
+        const snapshot = await uploadBytes(fileRef, file);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        
+        setPromptImage(downloadUrl);
+        setPromptUploadProgress('Cloud success!');
+      } catch (err) {
+        console.warn("Storage upload failed, keeping base64 fallback:", err);
+        setPromptUploadProgress('Ready (local)!');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveDriverPic = async () => {
+    if (!promptImage) return;
+    try {
+      const { update } = await import('firebase/database');
+      const profileRef = ref(database, `drivers/${session.id}`);
+      await update(profileRef, { image: promptImage });
+      localStorage.setItem(`prompted_driver_pic_${session.id}`, 'true');
+      setShowDriverPicPrompt(false);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSkipDriverPic = () => {
+    localStorage.setItem(`prompted_driver_pic_${session.id}`, 'true');
+    setShowDriverPicPrompt(false);
+  };
 
   // 3. Listen to all database orders
   useEffect(() => {
@@ -1136,6 +1199,90 @@ export default function App() {
             <span>My Profile</span>
           </button>
         </footer>
+      )}
+
+      {/* Profile Picture Prompt Modal */}
+      {showDriverPicPrompt && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          padding: '20px',
+          backdropFilter: 'blur(5px)'
+        }}>
+          <div className="card" style={{
+            width: '100%',
+            maxWidth: '400px',
+            backgroundColor: '#1E1E1E',
+            border: '1px solid var(--primary)',
+            padding: '24px',
+            borderRadius: '12px',
+            textAlign: 'center',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+          }}>
+            <h3 style={{ color: '#FFF', fontSize: '20px', fontWeight: 'bold', marginBottom: '8px' }}>
+              Upload Profile Picture 📸
+            </h3>
+            <p style={{ fontSize: '13px', color: '#AAA', lineHeight: '18px', marginBottom: '20px' }}>
+              Welcome back! Please upload a profile picture to complete your rider profile.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+              <div className="profile-avatar-circle" style={{ width: '100px', height: '100px', borderColor: 'var(--primary)' }}>
+                <img src={promptImage || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt="Preview" className="profile-avatar-img" />
+              </div>
+              
+              <div style={{ width: '100%', textAlign: 'left' }}>
+                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', color: '#FFF', marginBottom: '6px' }}>
+                  <span>Choose Profile Image</span>
+                  <span style={{ fontSize: '11px', color: 'var(--primary)' }}>{promptUploadProgress}</span>
+                </label>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handlePromptImageUpload} 
+                  style={{ width: '100%', fontSize: '12px', color: '#888' }}
+                />
+              </div>
+
+              <div style={{ width: '100%', textAlign: 'left' }}>
+                <label style={{ fontSize: '13px', color: '#FFF', display: 'block', marginBottom: '6px' }}>Or paste an image URL:</label>
+                <input 
+                  type="url" 
+                  className="form-control" 
+                  value={promptImage}
+                  onChange={(e) => setPromptImage(e.target.value)}
+                  placeholder="https://example.com/rider.jpg"
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                className="btn btn-secondary" 
+                style={{ flex: 1, padding: '12px', fontSize: '14px', height: 'auto', borderColor: '#444' }}
+                onClick={handleSkipDriverPic}
+              >
+                Skip for Now
+              </button>
+              <button 
+                className="btn btn-primary" 
+                style={{ flex: 1, padding: '12px', fontSize: '14px', height: 'auto' }}
+                disabled={!promptImage}
+                onClick={handleSaveDriverPic}
+              >
+                Save Photo
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

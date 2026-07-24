@@ -34,6 +34,11 @@ export default function App() {
   const [selectedRest, setSelectedRest] = useState(null);
   const [activeOrders, setActiveOrders] = useState([]);
 
+  // Profile Picture Upload first-time logic for Vendor
+  const [showVendorPicPrompt, setShowVendorPicPrompt] = useState(false);
+  const [vendorPromptImage, setVendorPromptImage] = useState('');
+  const [vendorPromptProgress, setVendorPromptProgress] = useState('');
+
   // Form states for Registering a New Restaurant
   const [restName, setRestName] = useState('');
   const [restImage, setRestImage] = useState('');
@@ -93,6 +98,64 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [user]);
+
+  useEffect(() => {
+    if (user && selectedRest) {
+      if (!selectedRest.image) {
+        const prompted = localStorage.getItem(`prompted_vendor_pic_${user.id}`);
+        if (!prompted) {
+          setShowVendorPicPrompt(true);
+        }
+      }
+    }
+  }, [user, selectedRest]);
+
+  const handleVendorPromptImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setVendorPromptProgress('Processing...');
+    
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      setVendorPromptImage(reader.result);
+      setVendorPromptProgress('Ready (local)!');
+
+      try {
+        const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+        const fileRef = sRef(storage, `restaurants/${Date.now()}_${file.name}`);
+        
+        setVendorPromptProgress('Uploading...');
+        const snapshot = await uploadBytes(fileRef, file);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        
+        setVendorPromptImage(downloadUrl);
+        setVendorPromptProgress('Cloud success!');
+      } catch (err) {
+        console.warn("Storage upload failed, keeping base64 fallback:", err);
+        setVendorPromptProgress('Ready (local)!');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveVendorPic = async () => {
+    if (!vendorPromptImage) return;
+    try {
+      const { update } = await import('firebase/database');
+      const restRef = ref(database, `restaurants/${selectedRest._id}`);
+      await update(restRef, { image: vendorPromptImage });
+      localStorage.setItem(`prompted_vendor_pic_${user.id}`, 'true');
+      setShowVendorPicPrompt(false);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSkipVendorPic = () => {
+    localStorage.setItem(`prompted_vendor_pic_${user.id}`, 'true');
+    setShowVendorPicPrompt(false);
+  };
 
   // 3. Listen to active orders placed for this restaurant
   useEffect(() => {
@@ -861,6 +924,89 @@ export default function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Profile Picture Prompt Modal */}
+      {showVendorPicPrompt && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          padding: '20px',
+          backdropFilter: 'blur(5px)'
+        }}>
+          <div className="card" style={{
+            width: '100%',
+            maxWidth: '400px',
+            backgroundColor: '#1E1E1E',
+            border: '1px solid var(--primary)',
+            padding: '24px',
+            borderRadius: '12px',
+            textAlign: 'center',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+          }}>
+            <h3 style={{ color: '#FFF', fontSize: '20px', fontWeight: 'bold', marginBottom: '8px' }}>
+              Upload Store Picture 📸
+            </h3>
+            <p style={{ fontSize: '13px', color: '#AAA', lineHeight: '18px', marginBottom: '20px' }}>
+              Welcome back! Please upload a store cover/profile picture to complete your merchant profile.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+              <div className="profile-avatar-circle" style={{ width: '100px', height: '100px', borderColor: 'var(--primary)' }}>
+                <img src={vendorPromptImage || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt="Preview" className="profile-avatar-img" />
+              </div>
+              
+              <div style={{ width: '100%', textAlign: 'left' }}>
+                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', color: '#FFF', marginBottom: '6px' }}>
+                  <span>Choose Store Image</span>
+                  <span style={{ fontSize: '11px', color: 'var(--primary)' }}>{vendorPromptProgress}</span>
+                </label>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleVendorPromptImageUpload} 
+                  style={{ width: '100%', fontSize: '12px', color: '#888' }}
+                />
+              </div>
+
+              <div style={{ width: '100%', textAlign: 'left' }}>
+                <label style={{ fontSize: '13px', color: '#FFF', display: 'block', marginBottom: '6px' }}>Or paste an image URL:</label>
+                <input 
+                  type="url" 
+                  className="form-control" 
+                  value={vendorPromptImage}
+                  onChange={(e) => setVendorPromptImage(e.target.value)}
+                  placeholder="https://example.com/store.jpg"
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                className="btn btn-secondary" 
+                style={{ flex: 1, padding: '12px', fontSize: '14px', height: 'auto', borderColor: '#444' }}
+                onClick={handleSkipVendorPic}
+              >
+                Skip for Now
+              </button>
+              <button 
+                className="btn btn-primary" 
+                style={{ flex: 1, padding: '12px', fontSize: '14px', height: 'auto' }}
+                disabled={!vendorPromptImage}
+                onClick={handleSaveVendorPic}
+              >
+                Save Photo
+              </button>
+            </div>
           </div>
         </div>
       )}

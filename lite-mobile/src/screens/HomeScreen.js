@@ -10,7 +10,8 @@ import {
   Image, 
   ActivityIndicator,
   StatusBar,
-  Platform
+  Platform,
+  Modal
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Categories from '../components/Categories';
@@ -28,8 +29,65 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [userLocationAddress, setUserLocationAddress] = useState("San Francisco, CA");
+
+  // Profile Picture Upload first-time logic
+  const [showProfilePicModal, setShowProfilePicModal] = useState(false);
+  const [selectedAvatar, setSelectedAvatar] = useState(null);
+  const [customUrl, setCustomUrl] = useState('');
+
+  const presetAvatars = [
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80'
+  ];
   
   const { logout, user } = useContext(AuthContext);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const { ref, get } = require('firebase/database');
+    const { database } = require('../../firebase');
+    const picRef = ref(database, `users/${user.uid}/profilePicture`);
+    
+    get(picRef).then(async (snapshot) => {
+      const pic = snapshot.val();
+      if (!pic) {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        const prompted = await AsyncStorage.getItem(`@chow_prompted_pic_${user.uid}`);
+        if (!prompted) {
+          setShowProfilePicModal(true);
+        }
+      }
+    }).catch(err => console.warn(err));
+  }, [user]);
+
+  const handleSaveProfilePic = async (url) => {
+    if (!user?.uid) return;
+    try {
+      const { ref, set } = require('firebase/database');
+      const { database } = require('../../firebase');
+      await set(ref(database, `users/${user.uid}/profilePicture`), url);
+      
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      await AsyncStorage.setItem(`@chow_prompted_pic_${user.uid}`, 'true');
+      setShowProfilePicModal(false);
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  const handleSkipProfilePic = async () => {
+    if (!user?.uid) return;
+    try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      await AsyncStorage.setItem(`@chow_prompted_pic_${user.uid}`, 'true');
+      setShowProfilePicModal(false);
+    } catch (e) {
+      console.warn(e);
+    }
+  };
 
   useEffect(() => {
     const fetchUserAddress = async () => {
@@ -248,6 +306,74 @@ export default function HomeScreen() {
         </ScrollView>
       )}
       <FooterNavbar activeTab="Home" />
+
+      <Modal
+        visible={showProfilePicModal}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Upload Profile Picture 📸</Text>
+            <Text style={styles.modalSubtitle}>
+              Welcome to ChowEats! Please choose or upload a profile picture to complete your account.
+            </Text>
+
+            {/* Avatars Row */}
+            <View style={styles.avatarOptionsRow}>
+              {presetAvatars.map((url, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.avatarOptionWrapper,
+                    selectedAvatar === url && styles.selectedAvatarOptionWrapper
+                  ]}
+                  onPress={() => {
+                    setSelectedAvatar(url);
+                    setCustomUrl('');
+                  }}
+                >
+                  <Image source={{ uri: url }} style={styles.avatarOptionImage} />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Custom URL Input */}
+            <Text style={styles.inputLabel}>Or enter custom Image URL:</Text>
+            <TextInput
+              style={styles.customUrlInput}
+              placeholder="https://example.com/avatar.jpg"
+              placeholderTextColor="#999"
+              value={customUrl}
+              onChangeText={(txt) => {
+                setCustomUrl(txt);
+                setSelectedAvatar(null);
+              }}
+            />
+
+            {/* Actions */}
+            <View style={styles.actionButtonsRow}>
+              <TouchableOpacity
+                style={styles.skipBtn}
+                onPress={handleSkipProfilePic}
+              >
+                <Text style={styles.skipBtnText}>Skip for Now</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.saveBtn,
+                  (!selectedAvatar && !customUrl) && styles.disabledSaveBtn
+                ]}
+                disabled={!selectedAvatar && !customUrl}
+                onPress={() => handleSaveProfilePic(selectedAvatar || customUrl)}
+              >
+                <Text style={styles.saveBtnText}>Save Profile</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -370,5 +496,114 @@ const styles = StyleSheet.create({
     color: '#666666',
     textAlign: 'center',
     marginTop: 6,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: '#666666',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+  avatarOptionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 20,
+  },
+  avatarOptionWrapper: {
+    borderWidth: 2,
+    borderColor: 'transparent',
+    borderRadius: 30,
+    padding: 2,
+  },
+  selectedAvatarOptionWrapper: {
+    borderColor: '#06C167',
+  },
+  avatarOptionImage: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#F0F0F0',
+  },
+  inputLabel: {
+    alignSelf: 'flex-start',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333333',
+    marginBottom: 6,
+  },
+  customUrlInput: {
+    width: '100%',
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 13,
+    color: '#1A1A1A',
+    marginBottom: 24,
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: 12,
+  },
+  skipBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  skipBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666666',
+  },
+  saveBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#06C167',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  disabledSaveBtn: {
+    backgroundColor: '#CCCCCC',
+  },
+  saveBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

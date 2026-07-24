@@ -18,6 +18,7 @@ export default function ProfileScreen({ navigation }) {
   const { user, logout, isMock } = useContext(AuthContext);
   const [walletBalance, setWalletBalance] = useState(0.00);
   const [subscriptionPlan, setSubscriptionPlan] = useState('Pay as you use');
+  const [profilePicture, setProfilePicture] = useState('');
 
   useEffect(() => {
     const userId = user?.uid || 'guest_user';
@@ -41,9 +42,16 @@ export default function ProfileScreen({ navigation }) {
       }
     });
 
+    const picRef = ref(database, `users/${userId}/profilePicture`);
+    const unsubscribePic = onValue(picRef, (snapshot) => {
+      const pic = snapshot.val();
+      setProfilePicture(pic || '');
+    });
+
     return () => {
       unsubscribeBalance();
       unsubscribePlan();
+      unsubscribePic();
     };
   }, [user]);
 
@@ -53,7 +61,7 @@ export default function ProfileScreen({ navigation }) {
         {/* Profile Card */}
         <View style={styles.profileHeaderCard}>
           <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80' }}
+            source={{ uri: profilePicture || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80' }}
             style={styles.avatarImage}
           />
           <Text style={styles.userName}>{user?.email ? user.email.split('@')[0] : 'Guest User'}</Text>
