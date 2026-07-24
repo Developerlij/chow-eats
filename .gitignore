@@ -53,3 +53,7 @@ yarn-error.*
 /operator-mobile/ios
 /driver-mobile/android
 /driver-mobile/ios
+
+# generated native folders for vendor wrapper
+/vendor-mobile/android
+/vendor-mobile/ios

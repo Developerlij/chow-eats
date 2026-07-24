@@ -115,29 +115,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleGuestLogin = () => {
-    setAuthError('');
-    try {
-      loginAsGuest();
-    } catch (err) {
-      setAuthError("Guest sign-in failed.");
-    }
-  };
-
-  const handleBypass = async () => {
-    setAuthError('');
-    try {
-      await login("test@chow.com", "password123");
-    } catch (err) {
-      setAuthError("Bypass failed, trying automatic registration...");
-      try {
-        await register("test@chow.com", "password123");
-      } catch (regErr) {
-        setAuthError(regErr.message || "Bypass registration failed.");
-      }
-    }
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -374,32 +351,6 @@ export default function LoginScreen() {
               <View id="recaptcha-container" style={{ display: 'none' }} />
             )}
 
-            {/* Divider */}
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Bypass/Demo Button */}
-            <TouchableOpacity 
-              style={styles.bypassBtn} 
-              onPress={handleBypass}
-              disabled={loading}
-            >
-              <Ionicons name="flash" size={18} color="#06C167" style={{ marginRight: 6 }} />
-              <Text style={styles.bypassBtnText}>Quick Sandbox Sign-In</Text>
-            </TouchableOpacity>
-
-            {/* Guest Login Button */}
-            <TouchableOpacity 
-              style={[styles.bypassBtn, { marginTop: 12, borderColor: '#666' }]} 
-              onPress={handleGuestLogin}
-              disabled={loading}
-            >
-              <Ionicons name="person-outline" size={18} color="#666" style={{ marginRight: 6 }} />
-              <Text style={[styles.bypassBtnText, { color: '#666' }]}>Continue as Guest</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>

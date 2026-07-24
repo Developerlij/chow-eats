@@ -12,6 +12,17 @@ import {
 
 export const AuthContext = createContext();
 
+// Helper to wrap promises with a timeout
+const withTimeout = (promise, timeoutMs = 3000, defaultValue = null) => {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => {
+      console.warn(`Database/Firestore operation timed out after ${timeoutMs}ms. Proceeding...`);
+      resolve(defaultValue);
+    }, timeoutMs))
+  ]);
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -38,8 +49,12 @@ export const AuthProvider = ({ children }) => {
       } catch (authErr) {
         // Fallback to database accounts if Auth is unconfigured
         if (authErr.code === "auth/configuration-not-found" || authErr.code === "auth/operation-not-allowed") {
-          const accountsSnapshot = await get(child(ref(database), 'userAccounts'));
-          const accounts = accountsSnapshot.val() || {};
+          const accountsSnapshot = await withTimeout(
+            get(child(ref(database), 'userAccounts')),
+            3000,
+            null
+          );
+          const accounts = (accountsSnapshot && typeof accountsSnapshot.val === 'function') ? (accountsSnapshot.val() || {}) : {};
           
           const matched = Object.values(accounts).find(
             acc => acc.email.toLowerCase() === email.toLowerCase() && acc.password === password
@@ -94,33 +109,39 @@ export const AuthProvider = ({ children }) => {
             joinedAt: new Date().toISOString()
           };
 
-          // 1. Write to RTDB for compatibility with existing dashboard panels
           const userRef = ref(database, `users/${response.user.uid}`);
-          await set(userRef, userData);
-
-          // 2. Write to Cloud Firestore
           const userDoc = doc(firestore, 'users', response.user.uid);
-          await setDoc(userDoc, userData);
-
-          // Save account credentials in DB as a backup search pool
           const accountRef = ref(database, `userAccounts/${response.user.uid}`);
-          await set(accountRef, {
-            id: response.user.uid,
-            email: email.toLowerCase(),
-            password: password,
-            name: fullName || email.split('@')[0],
-            phoneNumber: phoneNumber || ''
-          });
+
+          // Run writes concurrently with a timeout
+          await Promise.race([
+            Promise.all([
+              set(userRef, userData),
+              setDoc(userDoc, userData),
+              set(accountRef, {
+                id: response.user.uid,
+                email: email.toLowerCase(),
+                password: password,
+                name: fullName || email.split('@')[0],
+                phoneNumber: phoneNumber || ''
+              })
+            ]),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Database writes timed out")), 2500))
+          ]);
         } catch (dbErr) {
-          console.warn("Writing registered user to Firestore/DB failed:", dbErr);
+          console.warn("Writing registered user to Firestore/DB failed or timed out:", dbErr);
         }
 
         mockUser = response.user;
       } catch (authErr) {
         // Fallback to database accounts if Auth is unconfigured
         if (authErr.code === "auth/configuration-not-found" || authErr.code === "auth/operation-not-allowed") {
-          const accountsSnapshot = await get(child(ref(database), 'userAccounts'));
-          const accounts = accountsSnapshot.val() || {};
+          const accountsSnapshot = await withTimeout(
+            get(child(ref(database), 'userAccounts')),
+            3000,
+            null
+          );
+          const accounts = (accountsSnapshot && typeof accountsSnapshot.val === 'function') ? (accountsSnapshot.val() || {}) : {};
           const emailTaken = Object.values(accounts).some(
             acc => acc.email.toLowerCase() === email.toLowerCase()
           );
@@ -137,10 +158,6 @@ export const AuthProvider = ({ children }) => {
             phoneNumber: phoneNumber || ''
           };
 
-          // 1. Write accounts entry
-          await set(ref(database, `userAccounts/${mockUid}`), newAccount);
-
-          // 2. Write profiles entry in RTDB
           const userData = {
             uid: mockUid,
             email: email.toLowerCase(),
@@ -148,11 +165,17 @@ export const AuthProvider = ({ children }) => {
             phoneNumber: phoneNumber || '',
             joinedAt: new Date().toISOString()
           };
-          await set(ref(database, `users/${mockUid}`), userData);
-
-          // 3. Write profiles entry in Firestore
           const userDoc = doc(firestore, 'users', mockUid);
-          await setDoc(userDoc, userData);
+
+          // Write account details concurrently with a timeout
+          await Promise.race([
+            Promise.all([
+              set(ref(database, `userAccounts/${mockUid}`), newAccount),
+              set(ref(database, `users/${mockUid}`), userData),
+              setDoc(userDoc, userData)
+            ]),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Fallback database writes timed out")), 2500))
+          ]);
 
           mockUser = {
             uid: mockUid,
@@ -216,15 +239,18 @@ export const AuthProvider = ({ children }) => {
           joinedAt: new Date().toISOString()
         };
 
-        // 1. Write to RTDB for compatibility with dashboards
         const userRef = ref(database, `users/${response.user.uid}`);
-        await set(userRef, userData);
-
-        // 2. Write to Cloud Firestore
         const userDoc = doc(firestore, 'users', response.user.uid);
-        await setDoc(userDoc, userData);
+        
+        await Promise.race([
+          Promise.all([
+            set(userRef, userData),
+            setDoc(userDoc, userData)
+          ]),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Phone verification writes timed out")), 2500))
+        ]);
       } catch (dbErr) {
-        console.warn("Writing phone user to Firestore/DB failed:", dbErr);
+        console.warn("Writing phone user to Firestore/DB failed or timed out:", dbErr);
       }
       setUser(response.user);
       return response.user;
@@ -261,15 +287,18 @@ export const AuthProvider = ({ children }) => {
         joinedAt: new Date().toISOString()
       };
 
-      // 1. Write to RTDB for compatibility with dashboards
       const userRef = ref(database, `users/${guestUid}`);
-      await set(userRef, userData);
-
-      // 2. Write to Cloud Firestore
       const userDoc = doc(firestore, 'users', guestUid);
-      await setDoc(userDoc, userData);
+      
+      await Promise.race([
+        Promise.all([
+          set(userRef, userData),
+          setDoc(userDoc, userData)
+          ]),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Guest database writes timed out")), 2500))
+        ]);
     } catch (dbErr) {
-      console.warn("Writing guest user to Firestore/DB failed:", dbErr);
+      console.warn("Writing guest user to Firestore/DB failed or timed out:", dbErr);
     }
 
     setUser(guestUser);

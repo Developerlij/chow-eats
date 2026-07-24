@@ -178,30 +178,6 @@ export default function App() {
     }
   };
 
-  // Quick Sandbox Merchant Account login
-  const handleSandboxBypass = async () => {
-    setAuthError('');
-    setAuthLoading(true);
-    const sandboxId = 'merchant_sandbox';
-    const sandboxAccount = {
-      id: sandboxId,
-      email: 'sandbox_merchant@chow.com',
-      password: 'chowmerchant123'
-    };
-
-    try {
-      // Seed sandbox account profile into database
-      await set(ref(database, `merchantAccounts/${sandboxId}`), sandboxAccount);
-      
-      // Save session locally
-      localStorage.setItem('chow_merchant_session', JSON.stringify(sandboxAccount));
-      setUser(sandboxAccount);
-    } catch (err) {
-      setAuthError("Sandbox login failed: " + err.message);
-    } finally {
-      setAuthLoading(false);
-    }
-  };
 
   const handleLogout = () => {
     localStorage.removeItem('chow_merchant_session');
@@ -448,16 +424,6 @@ export default function App() {
             </button>
           </div>
 
-          <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '20px 0' }} />
-
-          <button 
-            type="button" 
-            className="btn btn-secondary" 
-            onClick={handleSandboxBypass}
-            style={{ borderColor: 'var(--primary)', color: 'var(--primary)', fontWeight: 'bold', gap: '8px' }}
-          >
-            ⚡ Quick Sandbox Sign-In
-          </button>
           
         </div>
       </div>
