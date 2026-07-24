@@ -421,15 +421,15 @@ export default function DeliveryScreen() {
         userCoords.longitude
       );
 
-      // Trigger if rider is closer than 500 meters (0.5 km)
-      if (distance <= 0.5) {
+      // Trigger if rider is closer than 30 metres (0.03 km)
+      if (distance <= 0.03) {
         setNotifiedClose(true);
         if (Notifications && Notifications.scheduleNotificationAsync) {
           Notifications.scheduleNotificationAsync({
             identifier: 'rider-close-gps-alert',
             content: {
               title: "Your rider is close by! 🚴",
-              body: `Your delivery partner is only ${Math.round(distance * 1000)}m away and will arrive shortly!`,
+              body: `Your delivery partner is only ${Math.round(distance * 1000)} metres away and will arrive shortly!`,
               sound: true,
               priority: Notifications.AndroidNotificationPriority?.HIGH || 4,
             },
