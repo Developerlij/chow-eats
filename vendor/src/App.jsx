@@ -538,7 +538,7 @@ export default function App() {
                       <div className="item-details">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                           <h4 className="item-name">{dish.name}</h4>
-                          <span className="item-price">${dish.price.toFixed(2)}</span>
+                          <span className="item-price">#{dish.price.toFixed(2)}</span>
                         </div>
                         <p className="item-desc">{dish.description}</p>
                         
@@ -609,7 +609,7 @@ export default function App() {
                       </div>
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #333', paddingTop: '8px', fontSize: '13px' }}>
-                        <span style={{ color: '#888' }}>Payout: <strong>${(order.total || 0).toFixed(2)}</strong></span>
+                        <span style={{ color: '#888' }}>Payout: <strong>#{(order.total || 0).toFixed(2)}</strong></span>
                         <div style={{ display: 'flex', gap: '6px' }}>
                           {order.status === 'Preparing' || order.status === 'Preparing Order' ? (
                             <button 

@@ -149,7 +149,7 @@ export default function BasketScreen() {
               </Text>
               
               <Text style={styles.itemPrice}>
-                ${(item.dish.price * item.quantity).toFixed(2)}
+                #{(item.dish.price * item.quantity).toFixed(2)}
               </Text>
               
               <TouchableOpacity 
@@ -209,17 +209,17 @@ export default function BasketScreen() {
       <View style={styles.priceSheetContainer}>
         <View style={styles.priceRow}>
           <Text style={styles.priceLabelText}>Subtotal</Text>
-          <Text style={styles.priceValueText}>${subtotal.toFixed(2)}</Text>
+          <Text style={styles.priceValueText}>#{subtotal.toFixed(2)}</Text>
         </View>
 
         <View style={styles.priceRow}>
           <Text style={styles.priceLabelText}>Delivery Fee</Text>
-          <Text style={styles.priceValueText}>${deliveryFee.toFixed(2)}</Text>
+          <Text style={styles.priceValueText}>#{deliveryFee.toFixed(2)}</Text>
         </View>
 
         <View style={[styles.priceRow, { marginTop: 8 }]}>
           <Text style={styles.totalLabelText}>Order Total</Text>
-          <Text style={styles.totalValueText}>${total.toFixed(2)}</Text>
+          <Text style={styles.totalValueText}>#{total.toFixed(2)}</Text>
         </View>
 
         <TouchableOpacity 

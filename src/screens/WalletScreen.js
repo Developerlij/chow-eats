@@ -131,7 +131,7 @@ export default function WalletScreen({ navigation }) {
 
       setModalVisible(false);
       setDepositAmount('');
-      Alert.alert("Deposit Success", `$${amountNum.toFixed(2)} has been added to your wallet!`);
+      Alert.alert("Deposit Success", `#${amountNum.toFixed(2)} has been added to your wallet!`);
     } catch (e) {
       Alert.alert("Deposit Failed", e.message);
     } finally {
@@ -182,7 +182,7 @@ export default function WalletScreen({ navigation }) {
       setModalVisible(false);
       setDepositAmount('');
       setSenderName('');
-      Alert.alert("Bank Transfer Confirmed", `Credit received! $${amountNum.toFixed(2)} added from ${senderName.toUpperCase()} via ${bankName}.`);
+      Alert.alert("Bank Transfer Confirmed", `Credit received! #${amountNum.toFixed(2)} added from ${senderName.toUpperCase()} via ${bankName}.`);
     } catch (e) {
       Alert.alert("Settlement Error", e.message);
     } finally {
@@ -212,7 +212,7 @@ export default function WalletScreen({ navigation }) {
           {/* Card Wallet Balance */}
           <View style={styles.balanceCard}>
             <Text style={styles.balanceLabel}>AVAILABLE BALANCE</Text>
-            <Text style={styles.balanceText}>${balance.toFixed(2)}</Text>
+            <Text style={styles.balanceText}>#{balance.toFixed(2)}</Text>
             
             <TouchableOpacity 
               style={styles.depositBtn}
@@ -248,7 +248,7 @@ export default function WalletScreen({ navigation }) {
                     </View>
 
                     <Text style={[styles.transAmount, { color: isDeposit ? '#06C167' : '#D32F2F' }]}>
-                      {isDeposit ? '+' : '-'}${t.amount.toFixed(2)}
+                      {isDeposit ? '+' : '-'}#{t.amount.toFixed(2)}
                     </Text>
                   </View>
                 );
@@ -319,7 +319,7 @@ export default function WalletScreen({ navigation }) {
                   <View>
                     <Text style={styles.modalSub}>Enter the amount to deposit from your linked credit card.</Text>
                     <View style={styles.inputContainer}>
-                      <Text style={styles.dollarSign}>$</Text>
+                      <Text style={styles.dollarSign}>#</Text>
                       <TextInput
                         style={styles.input}
                         value={depositAmount}
@@ -376,7 +376,7 @@ export default function WalletScreen({ navigation }) {
                     </View>
 
                     <View style={styles.formGroup}>
-                      <Text style={styles.inputLabel}>Amount Transferred ($)</Text>
+                      <Text style={styles.inputLabel}>Amount Transferred (#)</Text>
                       <TextInput 
                         style={styles.simpleInput} 
                         value={depositAmount} 

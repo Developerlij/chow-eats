@@ -41,7 +41,7 @@ export default function NotificationsScreen({ navigation }) {
           {
             id: 'mock_2',
             title: '🎉 Free Delivery Weekend',
-            message: 'Get free delivery on all restaurant orders above $15. Active until Sunday midnight!',
+            message: 'Get free delivery on all restaurant orders above #15. Active until Sunday midnight!',
             sentAt: new Date(Date.now() - 3600000 * 24).toISOString()
           }
         ]);

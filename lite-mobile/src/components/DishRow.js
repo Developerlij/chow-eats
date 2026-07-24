@@ -51,7 +51,7 @@ export default function DishRow({ id, name, description, price, imgUrl, restaura
         <View style={styles.detailsContainer}>
           <Text style={styles.dishName}>{name}</Text>
           <Text style={styles.dishDescription} numberOfLines={2}>{description}</Text>
-          <Text style={styles.dishPrice}>${price.toFixed(2)}</Text>
+          <Text style={styles.dishPrice}>#{price.toFixed(2)}</Text>
         </View>
 
         {imgUrl ? (

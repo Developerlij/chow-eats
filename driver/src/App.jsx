@@ -833,7 +833,7 @@ export default function App() {
                       {activeOrder.paymentMethod === 'Transfer' ? (
                         <span className="badge badge-transfer">🏦 Bank Transfer Paid</span>
                       ) : (
-                        <span className="badge badge-cash">💵 Collect Cash: ${(activeOrder.total || 0).toFixed(2)}</span>
+                        <span className="badge badge-cash">💵 Collect Cash: #{(activeOrder.total || 0).toFixed(2)}</span>
                       )}
                     </div>
                   </div>
@@ -936,7 +936,7 @@ export default function App() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>
                             <span style={{ display: 'block', fontSize: '11px', color: '#888' }}>Payout</span>
-                            <span className="order-amount">${(order.total || 0).toFixed(2)}</span>
+                            <span className="order-amount">#{(order.total || 0).toFixed(2)}</span>
                           </div>
                           <button className="btn" style={{ width: 'auto', padding: '8px 16px', fontSize: '13px' }} onClick={() => handleClaimOrder(order.id)}>
                             Accept Job
@@ -965,7 +965,7 @@ export default function App() {
                   </div>
                   <div>
                     <span style={{ fontSize: '13px', color: '#AAA', display: 'block', textTransform: 'uppercase', fontWeight: 'bold' }}>My Total Earnings</span>
-                    <span style={{ fontSize: '28px', fontWeight: '800', color: '#FFF' }}>${getTotalEarnings().toFixed(2)}</span>
+                    <span style={{ fontSize: '28px', fontWeight: '800', color: '#FFF' }}>#{getTotalEarnings().toFixed(2)}</span>
                     <span style={{ fontSize: '12px', color: '#06C167', display: 'block', marginTop: '2px', fontWeight: '500' }}>
                       Total Deliveries Completed: {getCompletedDeliveries().length}
                     </span>
@@ -996,7 +996,7 @@ export default function App() {
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#666' }}>ID: {order.id.slice(0, 10)}...</span>
-                            <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#06C167' }}>+${(order.total || 0).toFixed(2)}</span>
+                            <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#06C167' }}>+#{(order.total || 0).toFixed(2)}</span>
                           </div>
 
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px', color: '#DDD' }}>

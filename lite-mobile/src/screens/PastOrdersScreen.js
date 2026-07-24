@@ -142,7 +142,7 @@ export default function PastOrdersScreen({ navigation }) {
                   <Text style={styles.paymentMethod}>
                     {order.paymentMethod === 'Transfer' ? '🏦 Bank Transfer' : '💵 Cash on Delivery'}
                   </Text>
-                  <Text style={styles.totalPrice}>Total: ${order.total ? order.total.toFixed(2) : '0.00'}</Text>
+                  <Text style={styles.totalPrice}>Total: #{order.total ? order.total.toFixed(2) : '0.00'}</Text>
                 </View>
               </View>
             ))

@@ -31,7 +31,7 @@ export default function BasketIcon() {
 
         <Text style={styles.centerText}>View Basket</Text>
 
-        <Text style={styles.priceText}>${total.toFixed(2)}</Text>
+        <Text style={styles.priceText}>#{total.toFixed(2)}</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );

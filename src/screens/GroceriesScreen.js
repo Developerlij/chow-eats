@@ -223,7 +223,7 @@ export default function GroceriesScreen() {
                 <View style={styles.productCard}>
                   <Image source={{ uri: item.image }} style={styles.productImage} />
                   <View style={styles.productDetails}>
-                    <Text style={styles.productPrice}>${item.price.toFixed(2)}</Text>
+                    <Text style={styles.productPrice}>#{item.price.toFixed(2)}</Text>
                     <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
                     <Text style={styles.productDesc} numberOfLines={2}>{item.description}</Text>
                     

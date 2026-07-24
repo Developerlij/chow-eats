@@ -53,7 +53,7 @@ export default function SubscriptionScreen({ navigation }) {
     {
       id: 'pay_as_you_use',
       name: 'Pay as you use',
-      price: '$0.00',
+      price: '#0.00',
       period: 'forever',
       badge: 'Free Tier',
       color: '#666666',
@@ -67,13 +67,13 @@ export default function SubscriptionScreen({ navigation }) {
     {
       id: 'monthly',
       name: 'Monthly Subscription',
-      price: '$9.99',
+      price: '#9.99',
       period: 'month',
       badge: 'Chow Pass Monthly',
       color: '#06C167',
       bgColor: '#E8F5E9',
       features: [
-        'Free Delivery on orders over $15',
+        'Free Delivery on orders over #15',
         '50% discount on platform service fees',
         'Priority en-route driver dispatching'
       ],
@@ -82,14 +82,14 @@ export default function SubscriptionScreen({ navigation }) {
     {
       id: 'yearly',
       name: 'Yearly Subscription',
-      price: '$89.99',
+      price: '#89.99',
       period: 'year',
       badge: 'Chow Pass Yearly',
       color: '#9C27B0',
       bgColor: '#F3E5F5',
       features: [
         'Unlimited FREE delivery on all orders',
-        'Zero platform service fees ($0.00 fees)',
+        'Zero platform service fees (#0.00 fees)',
         '24/7 VIP priority support hotline',
         'Save over 25% compared to monthly plan'
       ]
