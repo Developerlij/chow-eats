@@ -38,11 +38,26 @@ try {
   console.warn("expo-notifications is not supported in this environment:", e);
 }
 
+// Haversine formula to compute distance between two coordinates in km
+const getDistanceKm = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
+
 export default function DeliveryScreen() {
   const navigation = useNavigation();
   const { restaurant, activeOrderId } = useContext(BasketContext);
   const { user } = useContext(AuthContext);
   const userId = user?.uid || 'guest_user';
+
+  const [notifiedClose, setNotifiedClose] = useState(false);
 
   // Fallback coords if no restaurant detail was cached
   const restaurantCoords = {
@@ -263,6 +278,40 @@ export default function DeliveryScreen() {
       }
     }
   }, [orderStatus, riderLocation, userCoords.latitude, userCoords.longitude]);
+
+  // Reset notifiedClose flag when activeOrderId changes
+  useEffect(() => {
+    setNotifiedClose(false);
+  }, [activeOrderId]);
+
+  // Monitor rider coordinates distance and trigger proximity push notifications
+  useEffect(() => {
+    if (riderLocation && userCoords && !notifiedClose) {
+      const distance = getDistanceKm(
+        riderLocation.latitude,
+        riderLocation.longitude,
+        userCoords.latitude,
+        userCoords.longitude
+      );
+
+      // Trigger if rider is closer than 500 meters (0.5 km)
+      if (distance <= 0.5) {
+        setNotifiedClose(true);
+        if (Notifications && Notifications.scheduleNotificationAsync) {
+          Notifications.scheduleNotificationAsync({
+            identifier: 'rider-close-gps-alert',
+            content: {
+              title: "Your rider is close by! 🚴",
+              body: `Your delivery partner is only ${Math.round(distance * 1000)}m away and will arrive shortly!`,
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority?.HIGH || 4,
+            },
+            trigger: null
+          }).catch(() => {});
+        }
+      }
+    }
+  }, [riderLocation, userCoords, notifiedClose]);
 
   const handleCallRider = () => {
     if (!hasRider) {
