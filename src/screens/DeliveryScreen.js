@@ -58,6 +58,7 @@ export default function DeliveryScreen() {
   const userId = user?.uid || 'guest_user';
 
   const [notifiedClose, setNotifiedClose] = useState(false);
+  const [notifiedPickedUp, setNotifiedPickedUp] = useState(false);
 
   // Fallback coords if no restaurant detail was cached
   const restaurantCoords = {
@@ -279,10 +280,35 @@ export default function DeliveryScreen() {
     }
   }, [orderStatus, riderLocation, userCoords.latitude, userCoords.longitude]);
 
-  // Reset notifiedClose flag when activeOrderId changes
+  // Reset notification flags when activeOrderId changes
   useEffect(() => {
     setNotifiedClose(false);
+    setNotifiedPickedUp(false);
   }, [activeOrderId]);
+
+  // Monitor order status and trigger picked up notification immediately
+  useEffect(() => {
+    const isPickedUp = 
+      orderStatus === "Rider Picked Up Order" || 
+      orderStatus === "Picked Up" || 
+      orderStatus === "Driver on the way";
+
+    if (isPickedUp && !notifiedPickedUp) {
+      setNotifiedPickedUp(true);
+      if (Notifications && Notifications.scheduleNotificationAsync) {
+        Notifications.scheduleNotificationAsync({
+          identifier: 'rider-picked-up-alert',
+          content: {
+            title: "Order Picked Up! 🍔",
+            body: "Your rider has picked up your food from the restaurant and is heading to you.",
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority?.HIGH || 4,
+          },
+          trigger: null
+        }).catch(() => {});
+      }
+    }
+  }, [orderStatus, notifiedPickedUp]);
 
   // Monitor rider coordinates distance and trigger proximity push notifications
   useEffect(() => {
