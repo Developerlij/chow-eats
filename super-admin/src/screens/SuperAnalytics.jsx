@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { database } from '../firebase';
+import { ref, onValue } from 'firebase/database';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -10,11 +12,133 @@ import {
   ShieldAlert,
   Zap,
   CheckCircle,
-  Clock
+  Clock,
+  ShoppingBag,
+  Percent,
+  Layers,
+  Utensils,
+  FileSpreadsheet
 } from 'lucide-react';
+import { exportToCSV } from '../utils/CSVExporter';
 
 export default function SuperAnalytics() {
-  const [activeSubTab, setActiveSubTab] = useState('ceo'); // 'ceo', 'data', 'fraud', 'pos'
+  const [activeSubTab, setActiveSubTab] = useState('ceo'); // 'ceo', 'data', 'fraud', 'pos', 'woo'
+  const [orders, setOrders] = useState([]);
+  const [vouchers, setVouchers] = useState([]);
+
+  useEffect(() => {
+    const ordersRef = ref(database, 'orders');
+    const unsubscribeOrders = onValue(ordersRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setOrders(Object.keys(data).map(key => ({ id: key, ...data[key] })));
+      }
+    });
+
+    const vouchersRef = ref(database, 'vouchers');
+    const unsubscribeVouchers = onValue(vouchersRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setVouchers(Object.keys(data).map(key => ({ id: key, ...data[key] })));
+      }
+    });
+
+    return () => {
+      unsubscribeOrders();
+      unsubscribeVouchers();
+    };
+  }, []);
+
+  const deliveredOrders = orders.filter(o => o.status === 'Order Delivered');
+  const grossSales = deliveredOrders.reduce((acc, o) => acc + (o.total || 0), 0);
+  const totalSubtotal = deliveredOrders.reduce((acc, o) => acc + (o.subtotal || 0), 0);
+  const netRevenue = totalSubtotal * 0.15 + deliveredOrders.reduce((acc, o) => acc + (o.serviceFee || 0), 0);
+  const couponDiscount = deliveredOrders.reduce((acc, o) => acc + (o.discount || 0), 0);
+  const totalShipping = deliveredOrders.reduce((acc, o) => acc + (o.deliveryFee || 0), 0);
+
+  const getTopSellingDishes = () => {
+    const dishCount = {};
+    deliveredOrders.forEach(o => {
+      if (o.dishes) {
+        const list = Array.isArray(o.dishes) ? o.dishes : Object.values(o.dishes);
+        list.forEach(d => {
+          if (!d) return;
+          const key = d.name || d.title || 'Unknown Dish';
+          if (!dishCount[key]) {
+            dishCount[key] = {
+              name: key,
+              quantity: 0,
+              revenue: 0,
+              image: d.image || d.imgUrl || ''
+            };
+          }
+          const qty = parseInt(d.quantity || d.qty || 1);
+          dishCount[key].quantity += qty;
+          dishCount[key].revenue += (parseFloat(d.price) || 0) * qty;
+        });
+      }
+    });
+    return Object.values(dishCount).sort((a, b) => b.quantity - a.quantity).slice(0, 5);
+  };
+  const topSellingDishes = getTopSellingDishes();
+
+  const getCategoryPerformance = () => {
+    const categorySales = {};
+    deliveredOrders.forEach(o => {
+      const cat = o.restaurantCategory || 'Food';
+      if (!categorySales[cat]) {
+        categorySales[cat] = {
+          category: cat,
+          sales: 0,
+          ordersCount: 0
+        };
+      }
+      categorySales[cat].sales += o.total || 0;
+      categorySales[cat].ordersCount += 1;
+    });
+    return Object.values(categorySales).sort((a, b) => b.sales - a.sales);
+  };
+  const categoryPerformance = getCategoryPerformance();
+
+  const getCouponPerformance = () => {
+    const coupons = {};
+    deliveredOrders.forEach(o => {
+      if (o.voucherCode || o.promoCode) {
+        const code = o.voucherCode || o.promoCode;
+        if (!coupons[code]) {
+          coupons[code] = {
+            code: code,
+            redemptions: 0,
+            discountApplied: 0,
+            revenueGenerated: 0
+          };
+        }
+        coupons[code].redemptions += 1;
+        coupons[code].discountApplied += o.discount || 0;
+        coupons[code].revenueGenerated += o.total || 0;
+      }
+    });
+    return Object.values(coupons).sort((a, b) => b.redemptions - a.redemptions);
+  };
+  const couponPerformance = getCouponPerformance();
+
+  const handleExportTopProducts = () => {
+    const headers = ["Product Name", "Quantity Sold", "Total Revenue Generated"];
+    const rows = topSellingDishes.map(d => [d.name, d.quantity, `#${d.revenue.toFixed(2)}`]);
+    exportToCSV("chow_top_selling_products.csv", headers, rows);
+  };
+
+  const handleExportCategorySales = () => {
+    const headers = ["Category Name", "Total Orders", "Gross Sales Contribution"];
+    const rows = categoryPerformance.map(c => [c.category, c.ordersCount, `#${c.sales.toFixed(2)}`]);
+    exportToCSV("chow_category_sales.csv", headers, rows);
+  };
+
+  const handleExportCoupons = () => {
+    const headers = ["Promo Code", "Total Redemptions", "Total Discount Value", "Total Sales Volume Generated"];
+    const rows = couponPerformance.map(c => [c.code, c.redemptions, `#${c.discountApplied.toFixed(2)}`, `#${c.revenueGenerated.toFixed(2)}`]);
+    exportToCSV("chow_coupons_performance.csv", headers, rows);
+  };
   
   // Mock data for POS configuration
   const [posConfig, setPosConfig] = useState({
@@ -66,6 +190,13 @@ export default function SuperAnalytics() {
           onClick={() => setActiveSubTab('pos')}
         >
           🤝 POS & B2B (BizDev)
+        </button>
+        <button 
+          className={`action-btn-small ${activeSubTab === 'woo' ? 'action-btn-primary' : ''}`}
+          style={{ padding: '8px 16px', borderRadius: '6px', fontWeight: 'bold' }}
+          onClick={() => setActiveSubTab('woo')}
+        >
+          🛍️ WooCommerce Analytics
         </button>
       </div>
 
@@ -370,6 +501,197 @@ export default function SuperAnalytics() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* 5. WOOCOMMERCE ANALYTICS SUB-PANEL */}
+      {activeSubTab === 'woo' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Revenue KPI Summary */}
+          <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            <div className="metric-card" style={{ borderLeft: '4px solid #06C167' }}>
+              <div className="metric-icon-box" style={{ backgroundColor: '#E8F5E9' }}>
+                <TrendingUp size={20} color="#06C167" />
+              </div>
+              <div className="metric-details">
+                <h4>Gross Sales (GMV)</h4>
+                <p>#{grossSales.toFixed(2)}</p>
+                <span style={{ fontSize: '11px', color: '#888' }}>Total delivered value</span>
+              </div>
+            </div>
+
+            <div className="metric-card" style={{ borderLeft: '4px solid #0288D1' }}>
+              <div className="metric-icon-box" style={{ backgroundColor: '#E1F5FE' }}>
+                <ShoppingBag size={20} color="#0288D1" />
+              </div>
+              <div className="metric-details">
+                <h4>Net Revenue</h4>
+                <p>#{netRevenue.toFixed(2)}</p>
+                <span style={{ fontSize: '11px', color: '#0288D1' }}>Platform Cut (15%) + Service Fees</span>
+              </div>
+            </div>
+
+            <div className="metric-card" style={{ borderLeft: '4px solid #E91E63' }}>
+              <div className="metric-icon-box" style={{ backgroundColor: '#FCE4EC' }}>
+                <Percent size={20} color="#E91E63" />
+              </div>
+              <div className="metric-details">
+                <h4>Coupons Discounted</h4>
+                <p>-#{couponDiscount.toFixed(2)}</p>
+                <span style={{ fontSize: '11px', color: '#E91E63' }}>Subtracted from Gross Sales</span>
+              </div>
+            </div>
+
+            <div className="metric-card" style={{ borderLeft: '4px solid #9C27B0' }}>
+              <div className="metric-icon-box" style={{ backgroundColor: '#F3E5F5' }}>
+                <DollarSign size={20} color="#9C27B0" />
+              </div>
+              <div className="metric-details">
+                <h4>Delivery Fees Volume</h4>
+                <p>#{totalShipping.toFixed(2)}</p>
+                <span style={{ fontSize: '11px', color: '#9C27B0' }}>Paid out to active riders</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="charts-row" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            {/* Top Products Leaderboard */}
+            <div className="card">
+              <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Top Selling Dishes</span>
+                <button 
+                  className="action-btn-small" 
+                  style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  onClick={handleExportTopProducts}
+                >
+                  <FileSpreadsheet size={12} />
+                  Export
+                </button>
+              </div>
+              <div className="table-responsive" style={{ marginTop: '10px' }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Dish Name</th>
+                      <th>Quantity Sold</th>
+                      <th>Total Sales Volume</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topSellingDishes.length > 0 ? (
+                      topSellingDishes.map((dish, index) => (
+                        <tr key={index}>
+                          <td style={{ fontWeight: 'bold', color: '#FFF' }}>
+                            🍳 {dish.name}
+                          </td>
+                          <td>{dish.quantity} units</td>
+                          <td style={{ fontWeight: 'bold', color: '#06C167' }}>#{dish.revenue.toFixed(2)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="3" style={{ textAlign: 'center', color: '#999', padding: '16px' }}>
+                          No sales data recorded yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Category Performance */}
+            <div className="card">
+              <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Category Performance</span>
+                <button 
+                  className="action-btn-small" 
+                  style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  onClick={handleExportCategorySales}
+                >
+                  <FileSpreadsheet size={12} />
+                  Export
+                </button>
+              </div>
+              <div className="table-responsive" style={{ marginTop: '10px' }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Category</th>
+                      <th>Total Orders</th>
+                      <th>Total Gross Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {categoryPerformance.length > 0 ? (
+                      categoryPerformance.map((cat, index) => (
+                        <tr key={index}>
+                          <td style={{ fontWeight: 'bold', color: '#FFF' }}>
+                            📂 {cat.category}
+                          </td>
+                          <td>{cat.ordersCount} orders</td>
+                          <td style={{ fontWeight: 'bold', color: '#06C167' }}>#{cat.sales.toFixed(2)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="3" style={{ textAlign: 'center', color: '#999', padding: '16px' }}>
+                          No category orders recorded yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Coupon Performance Dashboard */}
+          <div className="card">
+            <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Coupon & Voucher Redemptions</span>
+              <button 
+                className="action-btn-small" 
+                style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                onClick={handleExportCoupons}
+              >
+                <FileSpreadsheet size={12} />
+                Export
+              </button>
+            </div>
+            <div className="table-responsive" style={{ marginTop: '10px' }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Promo Voucher Code</th>
+                    <th>Voucher Redemptions</th>
+                    <th>Total Disbursed Discount Value</th>
+                    <th>Total Gross Sales Volume Generated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {couponPerformance.length > 0 ? (
+                    couponPerformance.map((coupon, index) => (
+                      <tr key={index}>
+                        <td><code style={{ fontSize: '13px', fontWeight: 'bold', color: '#0288D1' }}>{coupon.code}</code></td>
+                        <td>{coupon.redemptions} redemptions</td>
+                        <td style={{ color: '#E91E63', fontWeight: '500' }}>-#{coupon.discountApplied.toFixed(2)}</td>
+                        <td style={{ color: '#06C167', fontWeight: 'bold' }}>#{coupon.revenueGenerated.toFixed(2)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="4" style={{ textAlign: 'center', color: '#999', padding: '24px' }}>
+                        No coupon discounts redeemed yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
 
