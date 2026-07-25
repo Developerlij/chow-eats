@@ -20,7 +20,8 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#1E1E1E"
       },
-      "package": "com.chow.driver.mobile"
+      "package": "com.chow.driver.mobile",
+      "usesCleartextTraffic": true
     }
   }
 }
