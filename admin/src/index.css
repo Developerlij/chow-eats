@@ -49,6 +49,30 @@ body {
   flex-direction: column;
   padding: 24px 16px;
   height: 100%;
+  transition: width 0.2s ease, padding 0.2s ease;
+}
+
+/* Minimized Sidebar */
+.sidebar.minimized {
+  width: 76px;
+  padding: 24px 10px;
+  align-items: center;
+}
+
+.sidebar.minimized .logo-section {
+  padding-left: 0;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.sidebar.minimized .nav-item {
+  justify-content: center;
+  padding: 12px;
+}
+
+.sidebar.minimized .nav-icon {
+  margin-right: 0;
 }
 
 .logo-section {

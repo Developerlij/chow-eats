@@ -15,7 +15,9 @@ import {
   Activity,
   DollarSign,
   ShieldCheck,
-  Cpu
+  Cpu,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 // Import Screens
@@ -37,6 +39,7 @@ import SuperAnalytics from './screens/SuperAnalytics';
 export default function App() {
   const [activeTab, setActiveTab] = useState('Overview');
   const [pendingCount, setPendingCount] = useState(0);
+  const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
 
   useEffect(() => {
     const ordersRef = ref(database, 'orders');
@@ -86,11 +89,34 @@ export default function App() {
   return (
     <div className="app-container">
       {/* Sidebar Navigation */}
-      <aside className="sidebar">
-        <div className="logo-section">
-          <ShieldAlert size={28} color="#06C167" />
-          <h2 className="logo-title">ChowEats</h2>
-          <span className="logo-sub" style={{ color: '#06C167', fontWeight: 'bold' }}>Super Admin</span>
+      <aside className={`sidebar ${isSidebarMinimized ? 'minimized' : ''}`}>
+        <div className="logo-section" style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+          <ShieldAlert size={28} color="#06C167" style={{ flexShrink: 0 }} />
+          {!isSidebarMinimized && (
+            <>
+              <h2 className="logo-title">ChowEats</h2>
+              <span className="logo-sub" style={{ color: '#06C167', fontWeight: 'bold' }}>Super Admin</span>
+            </>
+          )}
+          <button 
+            onClick={() => setIsSidebarMinimized(!isSidebarMinimized)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#888',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginLeft: isSidebarMinimized ? '0px' : 'auto',
+              marginTop: isSidebarMinimized ? '10px' : '0px',
+              transition: 'all 0.2s ease',
+            }}
+            title={isSidebarMinimized ? "Expand Sidebar" : "Minimize Sidebar"}
+          >
+            {isSidebarMinimized ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+          </button>
         </div>
 
         <nav className="nav-menu">
@@ -102,37 +128,52 @@ export default function App() {
                 key={item.name}
                 className={`nav-item ${isActive ? 'active' : ''}`}
                 onClick={() => setActiveTab(item.name)}
+                title={isSidebarMinimized ? item.label : ""}
               >
-                <span className="nav-icon">
+                <span className="nav-icon" style={{ position: 'relative' }}>
                   <IconComponent size={20} />
-                </span>
-                <span className="nav-label-wrapper" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1 }}>
-                  <span>{item.label}</span>
-                  {item.name === 'Orders' && pendingCount > 0 && (
-                    <span className="number-ribbon" style={{ 
-                      backgroundColor: '#D32F2F', 
-                      color: '#FFFFFF', 
-                      fontSize: '10px', 
-                      fontWeight: 'extrabold', 
-                      borderRadius: '10px', 
-                      padding: '2px 7px', 
-                      marginLeft: '6px',
-                      display: 'inline-block',
-                      lineHeight: '1.2'
-                    }}>
-                      {pendingCount}
-                    </span>
+                  {isSidebarMinimized && item.name === 'Orders' && pendingCount > 0 && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '-4px',
+                      right: '-4px',
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: '#D32F2F',
+                      border: '1.5px solid var(--bg-dark-sidebar)'
+                    }} />
                   )}
                 </span>
+                {!isSidebarMinimized && (
+                  <span className="nav-label-wrapper" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1 }}>
+                    <span>{item.label}</span>
+                    {item.name === 'Orders' && pendingCount > 0 && (
+                      <span className="number-ribbon" style={{ 
+                        backgroundColor: '#D32F2F', 
+                        color: '#FFFFFF', 
+                        fontSize: '10px', 
+                        fontWeight: 'extrabold', 
+                        borderRadius: '10px', 
+                        padding: '2px 7px', 
+                        marginLeft: '6px',
+                        display: 'inline-block',
+                        lineHeight: '1.2'
+                      }}>
+                        {pendingCount}
+                      </span>
+                    )}
+                  </span>
+                )}
               </button>
             );
           })}
         </nav>
 
-        <div className="sidebar-footer">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 0' }}>
-            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#06C167' }} />
-            <span style={{ fontSize: '13px', color: '#888' }}>Live Sync Active</span>
+        <div className="sidebar-footer" style={{ width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: isSidebarMinimized ? 'center' : 'flex-start', gap: '8px', padding: '8px 0' }}>
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#06C167', flexShrink: 0 }} />
+            {!isSidebarMinimized && <span style={{ fontSize: '13px', color: '#888' }}>Live Sync Active</span>}
           </div>
         </div>
       </aside>
