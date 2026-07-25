@@ -20,7 +20,8 @@ import {
   ChevronRight,
   Key,
   Briefcase,
-  Terminal
+  Terminal,
+  Package
 } from 'lucide-react';
 
 // Import Screens
@@ -40,6 +41,7 @@ import AuditManager from './screens/AuditManager';
 import SuperAnalytics from './screens/SuperAnalytics';
 import OperatorManager from './screens/OperatorManager';
 import ERPConsole from './screens/ERPConsole';
+import InventoryManager from './screens/InventoryManager';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Overview');
@@ -79,6 +81,7 @@ export default function App() {
     { name: 'Drivers', icon: Bike, component: Drivers, label: 'Manage Drivers' },
     { name: 'Users', icon: UsersIcon, component: Users, label: 'Customers' },
     { name: 'Operators', icon: Key, component: OperatorManager, label: 'Operator Manager' },
+    { name: 'Inventory', icon: Package, component: InventoryManager, label: 'Inventory Manager' },
     { name: 'Grocery', icon: Apple, component: GroceryManager, label: 'Grocery Manager' },
     { name: 'Promotions', icon: Ticket, component: PromotionsManager, label: 'Promotions' },
     { name: 'Disputes', icon: ShieldAlert, component: DisputesManager, label: 'Disputes Desk' },
@@ -127,6 +130,7 @@ export default function App() {
         (command === 'DR01' && item.name === 'Drivers') ||
         (command === 'US01' && item.name === 'Users') ||
         (command === 'OP01' && item.name === 'Operators') ||
+        (command === 'IV01' && item.name === 'Inventory') ||
         (command === 'GR01' && item.name === 'Grocery') ||
         (command === 'PR01' && item.name === 'Promotions') ||
         (command === 'DI01' && item.name === 'Disputes') ||
