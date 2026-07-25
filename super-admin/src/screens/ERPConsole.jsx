@@ -17,9 +17,9 @@ import {
   Briefcase
 } from 'lucide-react';
 
-export default function ERPConsole() {
-  const [activeTab, setActiveTab] = useState('fico'); // fico, mm, sd, hcm, grc
-  const [tCode, setTCode] = useState('');
+export default function ERPConsole({ subTab, setSubTab }) {
+  const activeTab = subTab || 'fico';
+  const setActiveTab = setSubTab || (() => {});
   
   // Database States
   const [orders, setOrders] = useState([]);
@@ -62,31 +62,6 @@ export default function ERPConsole() {
     { id: 'DOC-0382', entity: 'Rider: John Doe', docType: 'Driver License', expiry: '2026-07-30', status: 'Critical (Expiring)', color: '#D32F2F' },
     { id: 'DOC-5932', entity: 'Burger Hub HQ', docType: 'Liquor License', expiry: '2027-02-18', status: 'Valid ✓', color: '#388E3C' }
   ]);
-
-  // T-Code Command Parser (FICO, MM, SD, HCM, GRC)
-  const handleTCodeSubmit = (e) => {
-    e.preventDefault();
-    const command = tCode.trim().toUpperCase();
-    if (command === '/FICO' || command === 'FB50') {
-      setActiveTab('fico');
-      alert("SAP T-Code Resolved: FB50 General Ledger (FICO Financials)");
-    } else if (command === '/MM' || command === 'MM03') {
-      setActiveTab('mm');
-      alert("SAP T-Code Resolved: MM03 Materials Management (MM Inventory)");
-    } else if (command === '/SD' || command === 'VA01') {
-      setActiveTab('sd');
-      alert("SAP T-Code Resolved: VA01 Sales & Distribution (SD SLA Dispatch)");
-    } else if (command === '/HCM' || command === 'PA30') {
-      setActiveTab('hcm');
-      alert("SAP T-Code Resolved: PA30 HR Shift Roster (HCM Human Capital)");
-    } else if (command === '/GRC' || command === 'SU01') {
-      setActiveTab('grc');
-      alert("SAP T-Code Resolved: SU01 Security & Governance (GRC Desk)");
-    } else {
-      alert(`Unknown SAP T-Code: "${command}". Try '/FICO', '/MM', '/SD', '/HCM', or '/GRC'.`);
-    }
-    setTCode('');
-  };
 
   useEffect(() => {
     onValue(ref(database, 'orders'), (snapshot) => {
@@ -150,31 +125,6 @@ export default function ERPConsole() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
-      {/* SAP ERP Command Line Header */}
-      <div className="card" style={{ padding: '12px 20px', background: '#1A1A1A', border: '1px solid #333', display: 'flex', alignItems: 'center', gap: '15px', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Terminal size={18} color="#06C167" />
-          <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#aaa' }}>SAP Command Center:</span>
-        </div>
-        <form onSubmit={handleTCodeSubmit} style={{ display: 'flex', gap: '8px', flex: 1, maxWidth: '500px' }}>
-          <input 
-            type="text" 
-            value={tCode}
-            onChange={(e) => setTCode(e.target.value)}
-            placeholder="Type T-Code (e.g. /FICO, /MM, /SD, /HCM, /GRC)"
-            style={{ flex: 1, background: '#121212', border: '1px solid #444', color: '#06C167', borderRadius: '4px', padding: '6px 12px', fontSize: '12px', fontFamily: 'monospace', outline: 'none' }}
-          />
-          <button 
-            type="submit" 
-            className="action-btn-small action-btn-primary" 
-            style={{ padding: '6px 14px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}
-          >
-            EXECUTE
-          </button>
-        </form>
-        <div style={{ fontSize: '11px', color: '#888', fontFamily: 'monospace' }}>SYSTEM: S4HANA_CHOW_PROD</div>
-      </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '20px' }}>
         
         {/* Sidebar ERP Navigation */}

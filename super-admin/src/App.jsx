@@ -19,7 +19,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Key,
-  Briefcase
+  Briefcase,
+  Terminal
 } from 'lucide-react';
 
 // Import Screens
@@ -44,6 +45,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('Overview');
   const [pendingCount, setPendingCount] = useState(0);
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
+  const [tCode, setTCode] = useState('');
+  const [erpSubTab, setErpSubTab] = useState('fico');
 
   useEffect(() => {
     const ordersRef = ref(database, 'orders');
@@ -83,10 +86,72 @@ export default function App() {
     { name: 'Health', icon: Activity, component: SystemHealth, label: 'System Health' }
   ];
 
+  const handleTCodeSubmit = (e) => {
+    e.preventDefault();
+    if (!tCode.trim()) return;
+    const command = tCode.trim().toUpperCase();
+    
+    // 1. Check ERP sub-modules
+    if (command === '/FICO' || command === 'FB50') {
+      setErpSubTab('fico');
+      setActiveTab('ERP');
+      alert("SAP T-Code Resolved: FB50 General Ledger (FICO Financials)");
+    } else if (command === '/MM' || command === 'MM03') {
+      setErpSubTab('mm');
+      setActiveTab('ERP');
+      alert("SAP T-Code Resolved: MM03 Materials Management (MM Inventory)");
+    } else if (command === '/SD' || command === 'VA01') {
+      setErpSubTab('sd');
+      setActiveTab('ERP');
+      alert("SAP T-Code Resolved: VA01 Sales & Distribution (SD SLA Dispatch)");
+    } else if (command === '/HCM' || command === 'PA30') {
+      setErpSubTab('hcm');
+      setActiveTab('ERP');
+      alert("SAP T-Code Resolved: PA30 HR Shift Roster (HCM Human Capital)");
+    } else if (command === '/GRC' || command === 'SU01') {
+      setErpSubTab('grc');
+      setActiveTab('ERP');
+      alert("SAP T-Code Resolved: SU01 Security & Governance (GRC Desk)");
+    } 
+    // 2. Check main navigation items
+    else {
+      const matchedItem = navigationItems.find(item => 
+        `/${item.name.toUpperCase()}` === command || 
+        item.label.toUpperCase() === command ||
+        (command === 'OV01' && item.name === 'Overview') ||
+        (command === 'FI01' && item.name === 'Finance') ||
+        (command === 'AU01' && item.name === 'Audit') ||
+        (command === 'RE01' && item.name === 'Restaurants') ||
+        (command === 'ME01' && item.name === 'Menu') ||
+        (command === 'OR01' && item.name === 'Orders') ||
+        (command === 'DR01' && item.name === 'Drivers') ||
+        (command === 'US01' && item.name === 'Users') ||
+        (command === 'OP01' && item.name === 'Operators') ||
+        (command === 'GR01' && item.name === 'Grocery') ||
+        (command === 'PR01' && item.name === 'Promotions') ||
+        (command === 'DI01' && item.name === 'Disputes') ||
+        (command === 'BR01' && item.name === 'Broadcast') ||
+        (command === 'HE01' && item.name === 'Health') ||
+        (command === 'AN01' && item.name === 'Analytics')
+      );
+
+      if (matchedItem) {
+        setActiveTab(matchedItem.name);
+        alert(`SAP T-Code Resolved: Switched to ${matchedItem.label}`);
+      } else {
+        alert(`Unknown SAP T-Code: "${command}". Try '/FICO', '/MM', '/SD', '/Orders', '/Finance', etc.`);
+      }
+    }
+    setTCode('');
+  };
+
   const renderActiveScreen = () => {
     const activeItem = navigationItems.find(item => item.name === activeTab);
     if (activeItem) {
       const ScreenComponent = activeItem.component;
+      if (activeItem.name === 'ERP') {
+        return <ScreenComponent subTab={erpSubTab} setSubTab={setErpSubTab} />;
+      }
       return <ScreenComponent />;
     }
     return <Overview />;
@@ -190,6 +255,28 @@ export default function App() {
           <h1 className="header-title">
             {navigationItems.find(item => item.name === activeTab)?.label || 'Overview'}
           </h1>
+
+          {/* Global SAP Command Center Bar */}
+          <form onSubmit={handleTCodeSubmit} style={{ display: 'flex', gap: '8px', flex: 1, maxWidth: '400px', marginLeft: '20px', marginRight: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#121212', border: '1px solid #333', borderRadius: '4px', padding: '2px 8px', flex: 1 }}>
+              <Terminal size={14} color="#06C167" />
+              <input 
+                type="text" 
+                value={tCode}
+                onChange={(e) => setTCode(e.target.value)}
+                placeholder="T-Code (e.g. /FICO, /Orders, /Finance)"
+                style={{ flex: 1, background: 'transparent', border: 'none', color: '#06C167', fontSize: '12px', fontFamily: 'monospace', outline: 'none', padding: '4px 0' }}
+              />
+            </div>
+            <button 
+              type="submit" 
+              className="action-btn-small action-btn-primary" 
+              style={{ padding: '6px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}
+            >
+              EXECUTE
+            </button>
+          </form>
+
           <div className="admin-badge" style={{ backgroundColor: '#9C27B0', color: '#FFF' }}>SUPER ADMINISTRATOR</div>
         </header>
 
