@@ -14,13 +14,16 @@ import { WebView } from 'react-native-webview';
 
 const DEFAULT_PORT = '5173';
 const APP_NAME = 'Admin';
+const PRODUCTION_URL = 'https://admin.choweats.com';
 
 export default function App() {
-  const defaultUrl = Platform.select({
-    android: `http://10.0.2.2:${DEFAULT_PORT}`,
-    ios: `http://127.0.0.1:${DEFAULT_PORT}`,
-    default: `http://localhost:${DEFAULT_PORT}`
-  });
+  const defaultUrl = __DEV__
+    ? Platform.select({
+        android: `http://10.0.2.2:${DEFAULT_PORT}`,
+        ios: `http://127.0.0.1:${DEFAULT_PORT}`,
+        default: `http://localhost:${DEFAULT_PORT}`
+      })
+    : PRODUCTION_URL;
 
   const [targetUrl, setTargetUrl] = useState(defaultUrl);
   const [errorDesc, setErrorDesc] = useState(null);
@@ -63,43 +66,49 @@ export default function App() {
         <View style={styles.errorContainer}>
           <Text style={styles.errorTitle}>Chow {APP_NAME} Link 🛰️</Text>
           <Text style={styles.errorSubtitle}>
-            Unable to connect to local server at:
+            {__DEV__ ? "Unable to connect to local server at:" : "We're having trouble connecting to our servers. Please check your internet connection."}
           </Text>
-          <Text style={styles.urlHighlight}>{targetUrl}</Text>
+          {__DEV__ && <Text style={styles.urlHighlight}>{targetUrl}</Text>}
           
           <Text style={styles.errorDescText}>
-            Status: {errorDesc} (ERR_ADDRESS_UNREACHABLE)
+            Status: {errorDesc}
           </Text>
 
-          <View style={styles.formCard}>
-            <Text style={styles.inputLabel}>Connect to custom host/IP:</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 192.168.1.50"
-              placeholderTextColor="#666"
-              value={customIp}
-              onChangeText={setCustomIp}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            
-            <TouchableOpacity style={styles.connectBtn} onPress={handleConnect}>
-              <Text style={styles.connectBtnText}>Save & Connect</Text>
-            </TouchableOpacity>
-          </View>
+          {__DEV__ && (
+            <>
+              <View style={styles.formCard}>
+                <Text style={styles.inputLabel}>Connect to custom host/IP:</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 192.168.1.50"
+                  placeholderTextColor="#666"
+                  value={customIp}
+                  onChangeText={setCustomIp}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                
+                <TouchableOpacity style={styles.connectBtn} onPress={handleConnect}>
+                  <Text style={styles.connectBtnText}>Save & Connect</Text>
+                </TouchableOpacity>
+              </View>
 
-          <View style={styles.instructionsBox}>
-            <Text style={styles.instructionsTitle}>Troubleshooting:</Text>
-            <Text style={styles.instructionStep}>1. Ensure Vite is running (`npm run dev` in {APP_NAME.toLowerCase()} web folder)</Text>
-            <Text style={styles.instructionStep}>2. USB Debugging: Run `adb reverse tcp:{DEFAULT_PORT} tcp:{DEFAULT_PORT}` on your PC</Text>
-          </View>
+              <View style={styles.instructionsBox}>
+                <Text style={styles.instructionsTitle}>Troubleshooting:</Text>
+                <Text style={styles.instructionStep}>1. Ensure Vite is running (`npm run dev` in {APP_NAME.toLowerCase()} web folder)</Text>
+                <Text style={styles.instructionStep}>2. USB Debugging: Run `adb reverse tcp:{DEFAULT_PORT} tcp:{DEFAULT_PORT}` on your PC</Text>
+              </View>
+            </>
+          )}
 
           <View style={styles.actionsRow}>
-            <TouchableOpacity style={styles.resetBtn} onPress={handleResetDefault}>
-              <Text style={styles.resetBtnText}>Use Default Loopback</Text>
-            </TouchableOpacity>
+            {__DEV__ && (
+              <TouchableOpacity style={styles.resetBtn} onPress={handleResetDefault}>
+                <Text style={styles.resetBtnText}>Use Default Loopback</Text>
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity style={styles.retryBtn} onPress={handleRetry}>
+            <TouchableOpacity style={[styles.retryBtn, !__DEV__ && { flex: 1, width: '100%' }]} onPress={handleRetry}>
               <Text style={styles.retryBtnText}>Retry Connection</Text>
             </TouchableOpacity>
           </View>
