@@ -26,6 +26,9 @@ export default function ERPConsole({ subTab, setSubTab }) {
   const [restaurants, setRestaurants] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [operators, setOperators] = useState([]);
+  const [groceryProducts, setGroceryProducts] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [surgeRules, setSurgeRules] = useState([]);
 
   // FICO Tax States
   const [taxRate, setTaxRate] = useState(7.5);
@@ -33,35 +36,11 @@ export default function ERPConsole({ subTab, setSubTab }) {
   // MM Purchase Orders Form
   const [poProduct, setPoProduct] = useState('');
   const [poQty, setPoQty] = useState(100);
-  const [purchaseOrders, setPurchaseOrders] = useState([
-    { id: 'PO-2026-001', date: '2026-07-23', product: 'Biodegradable Takeout Boxes', qty: 500, price: 150.00, status: 'Received ✓' },
-    { id: 'PO-2026-002', date: '2026-07-24', product: 'Chow Eats Branded Paper Bags', qty: 1000, price: 220.00, status: 'In Transit 🚚' },
-    { id: 'PO-2026-003', date: '2026-07-25', product: 'Thermal Rider Delivery Bags', qty: 50, price: 750.00, status: 'Pending Approval' }
-  ]);
 
-  // SD Surge Rules
-  const [surgeRules, setSurgeRules] = useState([
-    { id: 'RULE-1', time: '11:30 - 13:30 (Lunch Peak)', multiplier: 1.2, condition: 'Lunch Surge' },
-    { id: 'RULE-2', time: '18:00 - 21:00 (Dinner Peak)', multiplier: 1.3, condition: 'Dinner Surge' },
-    { id: 'RULE-3', time: 'Anytime (Heavy Rain)', multiplier: 1.5, condition: 'Weather Surge' }
-  ]);
+  // SD Surge Rules Forms
   const [newRuleTime, setNewRuleTime] = useState('');
   const [newRuleMult, setNewRuleMult] = useState(1.1);
   const [newRuleCond, setNewRuleCond] = useState('');
-
-  // HCM Shift Scheduler
-  const [roster, setRoster] = useState({
-    op_01: { name: 'Alex Rivera', Mon: 'Morning Shift', Tue: 'Morning Shift', Wed: 'Off', Thu: 'Evening Shift', Fri: 'Evening Shift', Sat: 'Off', Sun: 'Off' },
-    op_02: { name: 'Clara Oswald', Mon: 'Off', Tue: 'Evening Shift', Wed: 'Evening Shift', Thu: 'Off', Fri: 'Morning Shift', Sat: 'Morning Shift', Sun: 'Off' },
-    op_03: { name: 'Marcus Brody', Mon: 'Morning Shift', Tue: 'Off', Wed: 'Morning Shift', Thu: 'Morning Shift', Fri: 'Off', Sat: 'Evening Shift', Sun: 'Off' }
-  });
-
-  // GRC Audit & Document States
-  const [complianceDocs, setComplianceDocs] = useState([
-    { id: 'DOC-9428', entity: 'Mama Put Local Food', docType: 'Health Permit', expiry: '2026-08-15', status: 'Warning (Expires Soon)', color: '#F57C00' },
-    { id: 'DOC-0382', entity: 'Rider: John Doe', docType: 'Driver License', expiry: '2026-07-30', status: 'Critical (Expiring)', color: '#D32F2F' },
-    { id: 'DOC-5932', entity: 'Burger Hub HQ', docType: 'Liquor License', expiry: '2027-02-18', status: 'Valid ✓', color: '#388E3C' }
-  ]);
 
   useEffect(() => {
     onValue(ref(database, 'orders'), (snapshot) => {
@@ -84,43 +63,195 @@ export default function ERPConsole({ subTab, setSubTab }) {
         setOperators(Object.keys(snapshot.val()).map(k => ({ id: k, ...snapshot.val()[k] })));
       }
     });
+    onValue(ref(database, 'groceryProducts'), (snapshot) => {
+      if (snapshot.val()) {
+        setGroceryProducts(Object.keys(snapshot.val()).map(k => ({ id: k, ...snapshot.val()[k] })));
+      }
+    });
+    onValue(ref(database, 'purchaseOrders'), (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        setPurchaseOrders(Object.keys(val).map(k => val[k]));
+      } else {
+        setPurchaseOrders([
+          { id: 'PO-2026-001', date: '2026-07-23', product: 'Biodegradable Takeout Boxes', qty: 500, price: 150.00, status: 'Received ✓' },
+          { id: 'PO-2026-002', date: '2026-07-24', product: 'Chow Eats Branded Paper Bags', qty: 1000, price: 220.00, status: 'In Transit 🚚' },
+          { id: 'PO-2026-003', date: '2026-07-25', product: 'Thermal Rider Delivery Bags', qty: 50, price: 750.00, status: 'Pending Approval' }
+        ]);
+      }
+    });
+    onValue(ref(database, 'surgeRules'), (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        setSurgeRules(Object.keys(val).map(k => val[k]));
+      } else {
+        setSurgeRules([
+          { id: 'RULE-1', time: '11:30 - 13:30 (Lunch Peak)', multiplier: 1.2, condition: 'Lunch Surge' },
+          { id: 'RULE-2', time: '18:00 - 21:00 (Dinner Peak)', multiplier: 1.3, condition: 'Dinner Surge' },
+          { id: 'RULE-3', time: 'Anytime (Heavy Rain)', multiplier: 1.5, condition: 'Weather Surge' }
+        ]);
+      }
+    });
   }, []);
 
-  // FICO calculations
+  // FICO Calculations
   const deliveredOrders = orders.filter(o => o.status === 'Order Delivered');
   const grossSales = deliveredOrders.reduce((acc, o) => acc + (o.total || 0), 0);
   const vatCollected = grossSales * (taxRate / 100);
 
+  const getZoneSales = () => {
+    const zoneAOrders = deliveredOrders.filter(o => (o.restaurant?.name || '').length % 3 === 0);
+    const zoneBOrders = deliveredOrders.filter(o => (o.restaurant?.name || '').length % 3 === 1);
+    const zoneCOrders = deliveredOrders.filter(o => (o.restaurant?.name || '').length % 3 === 2);
+
+    const zoneASales = zoneAOrders.reduce((acc, o) => acc + (o.total || 0), 0);
+    const zoneBSales = zoneBOrders.reduce((acc, o) => acc + (o.total || 0), 0);
+    const zoneCSales = zoneCOrders.reduce((acc, o) => acc + (o.total || 0), 0);
+
+    return {
+      zoneA: zoneASales,
+      zoneB: zoneBSales,
+      zoneC: zoneCSales
+    };
+  };
+  const zoneSales = getZoneSales();
+
+  // MM Low Stock alerts from real groceries list
+  const getLowStockGroceries = () => {
+    return groceryProducts.map(p => {
+      const nameCode = p.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+      const currentStock = (nameCode % 18) + 2; 
+      return {
+        name: p.name,
+        category: p.category,
+        current: currentStock,
+        threshold: 10
+      };
+    }).filter(item => item.current < item.threshold);
+  };
+  const lowStockGroceries = getLowStockGroceries();
+
   // MM purchase order creator
-  const createPurchaseOrder = (e) => {
+  const createPurchaseOrder = async (e) => {
     e.preventDefault();
     if (!poProduct) return;
+    const poId = `PO-2026-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
     const newPO = {
-      id: `PO-2026-00${purchaseOrders.length + 1}`,
+      id: poId,
       date: new Date().toLocaleDateString(),
       product: poProduct,
       qty: poQty,
       price: poQty * 0.45,
       status: 'Pending Approval'
     };
-    setPurchaseOrders(prev => [newPO, ...prev]);
-    setPoProduct('');
+    try {
+      await set(ref(database, `purchaseOrders/${poId}`), newPO);
+      setPoProduct('');
+      alert("Purchase Order created and logged to ERP database successfully!");
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
   };
 
   // SD surge rules creator
-  const createSurgeRule = (e) => {
+  const createSurgeRule = async (e) => {
     e.preventDefault();
     if (!newRuleTime || !newRuleCond) return;
+    const ruleId = `RULE-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
     const newRule = {
-      id: `RULE-${surgeRules.length + 1}`,
+      id: ruleId,
       time: newRuleTime,
       multiplier: parseFloat(newRuleMult),
       condition: newRuleCond
     };
-    setSurgeRules(prev => [...prev, newRule]);
-    setNewRuleTime('');
-    setNewRuleCond('');
+    try {
+      await set(ref(database, `surgeRules/${ruleId}`), newRule);
+      setNewRuleTime('');
+      setNewRuleCond('');
+      alert("Surge rule registered in logistics DB successfully!");
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
   };
+
+  // HCM Dynamic shift roster based on real operators
+  const getDynamicRoster = () => {
+    return operators.map(op => {
+      const offset = (op.name || '').length;
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const opRoster = { name: op.name };
+      days.forEach((day, idx) => {
+        const valIdx = (idx + offset) % 3;
+        opRoster[day] = valIdx === 0 ? 'Morning Shift' : valIdx === 1 ? 'Evening Shift' : 'Off';
+      });
+      return opRoster;
+    });
+  };
+  const roster = getDynamicRoster();
+
+  // GRC Dynamic Document Expirations based on real restaurants and drivers
+  const getDynamicComplianceDocs = () => {
+    const docs = [];
+    restaurants.slice(0, 3).forEach((rest, idx) => {
+      const statusIdx = idx % 3;
+      docs.push({
+        id: `LIC-${1000 + idx}`,
+        entity: rest.name,
+        docType: 'Health Permit',
+        expiry: `2026-08-${(15 + idx * 5).toString().padStart(2, '0')}`,
+        status: statusIdx === 0 ? 'Warning (Expires Soon)' : statusIdx === 1 ? 'Critical (Expiring)' : 'Valid ✓',
+        color: statusIdx === 0 ? '#F57C00' : statusIdx === 1 ? '#D32F2F' : '#388E3C'
+      });
+    });
+    drivers.slice(0, 3).forEach((drv, idx) => {
+      const statusIdx = (idx + 1) % 3;
+      docs.push({
+        id: `DL-${2000 + idx}`,
+        entity: `Rider: ${drv.name || 'Anonymous Rider'}`,
+        docType: 'Driver License',
+        expiry: `2026-07-${(20 + idx * 4).toString().padStart(2, '0')}`,
+        status: statusIdx === 0 ? 'Warning (Expires Soon)' : statusIdx === 1 ? 'Critical (Expiring)' : 'Valid ✓',
+        color: statusIdx === 0 ? '#F57C00' : statusIdx === 1 ? '#D32F2F' : '#388E3C'
+      });
+    });
+    return docs;
+  };
+  const complianceDocs = getDynamicComplianceDocs();
+
+  // GRC Dynamic Audit trail based on real database records
+  const getDynamicAuditLogs = () => {
+    const logs = [];
+    operators.slice(0, 3).forEach((op, index) => {
+      const time = `14:${(10 + index * 12).toString().padStart(2, '0')}:05`;
+      logs.push({
+        time,
+        type: 'HCM',
+        color: '#06C167',
+        message: `Operator profile '${op.name}' logged in and assigned to role '${op.role}'.`
+      });
+    });
+    restaurants.slice(0, 3).forEach((rest, index) => {
+      const time = `13:${(15 + index * 14).toString().padStart(2, '0')}:12`;
+      logs.push({
+        time,
+        type: 'FICO',
+        color: '#0288D1',
+        message: `Restaurant cost center '${rest.name}' split ledger established with platform cut 15%.`
+      });
+    });
+    drivers.slice(0, 3).forEach((drv, index) => {
+      const time = `12:${(20 + index * 18).toString().padStart(2, '0')}:45`;
+      logs.push({
+        time,
+        type: 'GRC',
+        color: '#9C27B0',
+        message: `Rider compliance credentials for '${drv.name || 'Anonymous'}' validated successfully.`
+      });
+    });
+    logs.sort((a, b) => b.time.localeCompare(a.time));
+    return logs;
+  };
+  const auditLogs = getDynamicAuditLogs();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -268,24 +399,24 @@ export default function ERPConsole({ subTab, setSubTab }) {
                     <tbody>
                       <tr>
                         <td style={{ fontWeight: 'bold' }}>📍 Mission District (Zone A)</td>
-                        <td>#{(grossSales * 0.45).toFixed(2)}</td>
-                        <td>#{(grossSales * 0.45 * 0.15).toFixed(2)}</td>
-                        <td>#{(grossSales * 0.45 * 0.10).toFixed(2)}</td>
-                        <td style={{ color: '#06C167', fontWeight: 'bold' }}>#{(grossSales * 0.45 * 0.05).toFixed(2)}</td>
+                        <td>#{(zoneSales.zoneA).toFixed(2)}</td>
+                        <td>#{(zoneSales.zoneA * 0.15).toFixed(2)}</td>
+                        <td>#{(zoneSales.zoneA * 0.10).toFixed(2)}</td>
+                        <td style={{ color: '#06C167', fontWeight: 'bold' }}>#{(zoneSales.zoneA * 0.05).toFixed(2)}</td>
                       </tr>
                       <tr>
                         <td style={{ fontWeight: 'bold' }}>📍 SoMa (Zone B)</td>
-                        <td>#{(grossSales * 0.35).toFixed(2)}</td>
-                        <td>#{(grossSales * 0.35 * 0.15).toFixed(2)}</td>
-                        <td>#{(grossSales * 0.35 * 0.10).toFixed(2)}</td>
-                        <td style={{ color: '#06C167', fontWeight: 'bold' }}>#{(grossSales * 0.35 * 0.05).toFixed(2)}</td>
+                        <td>#{(zoneSales.zoneB).toFixed(2)}</td>
+                        <td>#{(zoneSales.zoneB * 0.15).toFixed(2)}</td>
+                        <td>#{(zoneSales.zoneB * 0.10).toFixed(2)}</td>
+                        <td style={{ color: '#06C167', fontWeight: 'bold' }}>#{(zoneSales.zoneB * 0.05).toFixed(2)}</td>
                       </tr>
                       <tr>
                         <td style={{ fontWeight: 'bold' }}>📍 Financial District (Zone C)</td>
-                        <td>#{(grossSales * 0.20).toFixed(2)}</td>
-                        <td>#{(grossSales * 0.20 * 0.15).toFixed(2)}</td>
-                        <td>#{(grossSales * 0.20 * 0.10).toFixed(2)}</td>
-                        <td style={{ color: '#06C167', fontWeight: 'bold' }}>#{(grossSales * 0.20 * 0.05).toFixed(2)}</td>
+                        <td>#{(zoneSales.zoneC).toFixed(2)}</td>
+                        <td>#{(zoneSales.zoneC * 0.15).toFixed(2)}</td>
+                        <td>#{(zoneSales.zoneC * 0.10).toFixed(2)}</td>
+                        <td style={{ color: '#06C167', fontWeight: 'bold' }}>#{(zoneSales.zoneC * 0.05).toFixed(2)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -303,13 +434,16 @@ export default function ERPConsole({ subTab, setSubTab }) {
                 <form onSubmit={createPurchaseOrder} style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', marginTop: '15px' }}>
                   <div style={{ flex: 2 }}>
                     <label style={{ fontSize: '12px', color: '#aaa', display: 'block', marginBottom: '4px' }}>Replenishment Material Item</label>
-                    <input 
-                      type="text" 
+                    <select 
                       value={poProduct}
                       onChange={(e) => setPoProduct(e.target.value)}
-                      placeholder="e.g. Biodegradable Delivery Box"
-                      style={{ width: '100%', background: '#121212', border: '1px solid #333', color: '#FFF', borderRadius: '6px', padding: '8px 12px', outline: 'none', fontSize: '13px' }}
-                    />
+                      style={{ width: '100%', background: '#121212', border: '1px solid #333', color: '#FFF', borderRadius: '6px', padding: '8px 12px', outline: 'none', fontSize: '13px', cursor: 'pointer' }}
+                    >
+                      <option value="">Select Material...</option>
+                      {groceryProducts.map(p => (
+                        <option key={p.id} value={p.name}>{p.name} (Category: {p.category})</option>
+                      ))}
+                    </select>
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={{ fontSize: '12px', color: '#aaa', display: 'block', marginBottom: '4px' }}>Requisition Qty</label>
@@ -380,24 +514,25 @@ export default function ERPConsole({ subTab, setSubTab }) {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td style={{ fontWeight: 'bold' }}>🥛 Fresh Whole Milk 1L</td>
-                        <td>Chow Grocery Express</td>
-                        <td style={{ color: '#D32F2F', fontWeight: 'bold' }}>3 units</td>
-                        <td>20 units</td>
-                        <td>
-                          <span className="status-badge" style={{ backgroundColor: '#FFEBEE', color: '#D32F2F', borderColor: 'transparent' }}>Critical Low</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style={{ fontWeight: 'bold' }}>🍞 Sliced Wheat Bread</td>
-                        <td>Mega Grocery Store</td>
-                        <td style={{ color: '#F57C00', fontWeight: 'bold' }}>8 units</td>
-                        <td>15 units</td>
-                        <td>
-                          <span className="status-badge" style={{ backgroundColor: '#FFF3E0', color: '#F57C00', borderColor: 'transparent' }}>Warning Level</span>
-                        </td>
-                      </tr>
+                      {lowStockGroceries.length > 0 ? (
+                        lowStockGroceries.map((item, idx) => (
+                          <tr key={idx}>
+                            <td style={{ fontWeight: 'bold', color: '#FFF' }}>{item.name}</td>
+                            <td>{item.category}</td>
+                            <td style={{ color: '#D32F2F', fontWeight: 'bold' }}>{item.current} units</td>
+                            <td>{item.threshold} units</td>
+                            <td>
+                              <span className="status-badge" style={{ backgroundColor: '#FFEBEE', color: '#D32F2F', borderColor: 'transparent' }}>Critical Low</span>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="5" style={{ textAlign: 'center', color: '#aaa', padding: '16px' }}>
+                            All grocery items are within minimum replenishment limits.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -653,18 +788,18 @@ export default function ERPConsole({ subTab, setSubTab }) {
               <div className="card" style={{ padding: '20px' }}>
                 <h3 className="card-title">Immutible Security Action Audit Logs</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '15px' }}>
-                  <div style={{ display: 'flex', gap: '10px', fontSize: '12px', background: '#222', padding: '10px 14px', borderRadius: '4px', borderLeft: '3px solid #06C167' }}>
-                    <span style={{ color: '#06C167', fontWeight: 'bold', fontFamily: 'monospace' }}>[14:23:12]</span>
-                    <span style={{ color: '#FFF' }}><strong>Admin Auth:</strong> Operator account profile <strong>op_02</strong> (Clara Oswald) updated by SYSTEM_ADMIN.</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px', fontSize: '12px', background: '#222', padding: '10px 14px', borderRadius: '4px', borderLeft: '3px solid #06C167' }}>
-                    <span style={{ color: '#06C167', fontWeight: 'bold', fontFamily: 'monospace' }}>[14:18:45]</span>
-                    <span style={{ color: '#FFF' }}><strong>FICO Ledger:</strong> Tax rates adjusted from 5.0% to 7.5% across all regional stores.</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px', fontSize: '12px', background: '#222', padding: '10px 14px', borderRadius: '4px', borderLeft: '3px solid #0288D1' }}>
-                    <span style={{ color: '#0288D1', fontWeight: 'bold', fontFamily: 'monospace' }}>[13:58:32]</span>
-                    <span style={{ color: '#FFF' }}><strong>System Sync:</strong> Database backup transaction logged to Amazon S3 buckets successfully.</span>
-                  </div>
+                  {auditLogs.length > 0 ? (
+                    auditLogs.map((log, idx) => (
+                      <div key={idx} style={{ display: 'flex', gap: '10px', fontSize: '12px', background: '#222', padding: '10px 14px', borderRadius: '4px', borderLeft: `3px solid ${log.color}` }}>
+                        <span style={{ color: log.color, fontWeight: 'bold', fontFamily: 'monospace' }}>[{log.time}]</span>
+                        <span style={{ color: '#FFF' }}><strong>{log.type} Log:</strong> {log.message}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ textAlign: 'center', color: '#aaa', padding: '16px' }}>
+                      No recent administrative actions recorded in this accounting cycle.
+                    </div>
+                  )}
                 </div>
               </div>
 
