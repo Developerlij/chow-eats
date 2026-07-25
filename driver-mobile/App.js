@@ -14,7 +14,7 @@ import { WebView } from 'react-native-webview';
 
 const DEFAULT_PORT = '5174';
 const APP_NAME = 'Driver';
-const PRODUCTION_URL = 'https://driver.choweats.com';
+const PRODUCTION_URL = 'https://chow-eats-dx42.vercel.app';
 
 export default function App() {
   const defaultUrl = __DEV__

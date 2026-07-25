@@ -14,7 +14,7 @@ import { WebView } from 'react-native-webview';
 
 const DEFAULT_PORT = '5173';
 const APP_NAME = 'Admin';
-const PRODUCTION_URL = 'https://admin.choweats.com';
+const PRODUCTION_URL = 'https://chow-eats.vercel.app';
 
 export default function App() {
   const defaultUrl = __DEV__
