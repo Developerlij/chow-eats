@@ -16,7 +16,8 @@ import {
   DollarSign,
   ShieldCheck,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Key
 } from 'lucide-react';
 
 // Import Screens
@@ -33,6 +34,7 @@ import BroadcastHub from './screens/BroadcastHub';
 import SystemHealth from './screens/SystemHealth';
 import FinanceManager from './screens/FinanceManager';
 import AuditManager from './screens/AuditManager';
+import OperatorManager from './screens/OperatorManager';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Overview');
@@ -67,6 +69,7 @@ export default function App() {
     { name: 'Orders', icon: ShoppingCart, component: OrdersManager, label: 'Live Orders' },
     { name: 'Drivers', icon: Bike, component: Drivers, label: 'Manage Drivers' },
     { name: 'Users', icon: UsersIcon, component: Users, label: 'Customers' },
+    { name: 'Operators', icon: Key, component: OperatorManager, label: 'Operator Manager' },
     { name: 'Grocery', icon: Apple, component: GroceryManager, label: 'Grocery Manager' },
     { name: 'Promotions', icon: Ticket, component: PromotionsManager, label: 'Promotions' },
     { name: 'Disputes', icon: ShieldAlert, component: DisputesManager, label: 'Disputes Desk' },
