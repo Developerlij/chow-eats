@@ -346,3 +346,61 @@ export const getRestaurantsByCategory = async (categoryName) => {
     return mockRestaurants.filter(r => r.category === categoryName);
   }
 };
+
+export const getDishesByCategory = async (categoryName) => {
+  if (!isMockFirebase && database) {
+    try {
+      const restSnapshot = await get(ref(database, 'restaurants'));
+      if (restSnapshot.exists()) {
+        const restData = restSnapshot.val() || {};
+        const dbRestaurants = Object.keys(restData)
+          .map(key => ({ _id: key, ...restData[key] }))
+          .filter(r => r && r.verified === true);
+        
+        let allDishes = [];
+        dbRestaurants.forEach(r => {
+          if (r.category && r.category.toLowerCase() === categoryName.toLowerCase() && r.dishes) {
+            const list = Array.isArray(r.dishes) ? r.dishes : Object.values(r.dishes);
+            list.forEach(d => {
+              if (d) {
+                allDishes.push({
+                  ...d,
+                  restaurant: {
+                    _id: r._id,
+                    name: r.name,
+                    imgUrl: r.image || r.imgUrl,
+                    rating: r.rating || 5,
+                    reviews: r.reviews || '0 reviews',
+                    address: r.address,
+                    description: r.description,
+                    lat: r.lat,
+                    lng: r.lng,
+                    category: r.category
+                  }
+                });
+              }
+            });
+          }
+        });
+        return allDishes;
+      }
+    } catch (e) {
+      console.warn("Failed to fetch dishes by category:", e);
+    }
+  }
+
+  // fallback for mock data
+  const mockR = mockRestaurants.filter(r => r.category && r.category.toLowerCase() === categoryName.toLowerCase());
+  let mockD = [];
+  mockR.forEach(r => {
+    if (r.dishes) {
+      r.dishes.forEach(d => {
+        mockD.push({
+          ...d,
+          restaurant: r
+        });
+      });
+    }
+  });
+  return mockD;
+};

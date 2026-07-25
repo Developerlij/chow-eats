@@ -279,8 +279,12 @@ export default function HomeScreen() {
           {/* Categories Horizontal Slider */}
           <Categories 
             categories={categories} 
-            activeCategory={activeCategory} 
-            onSelectCategory={setActiveCategory} 
+            activeCategory={null} 
+            onSelectCategory={(categoryName) => {
+              if (categoryName) {
+                navigation.navigate('Category', { categoryName });
+              }
+            }} 
           />
 
           {/* Featured Rows */}
