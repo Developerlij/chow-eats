@@ -11,7 +11,6 @@ import {
   ActivityIndicator 
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DEFAULT_PORT = '5177';
 const APP_NAME = 'Vendor';
@@ -23,24 +22,12 @@ export default function App() {
     default: `http://localhost:${DEFAULT_PORT}`
   });
 
-  const [targetUrl, setTargetUrl] = useState(null);
+  const [targetUrl, setTargetUrl] = useState(defaultUrl);
   const [errorDesc, setErrorDesc] = useState(null);
   const [customIp, setCustomIp] = useState('');
   const [key, setKey] = useState(0); // to force webview refresh
 
-  useEffect(() => {
-    AsyncStorage.getItem(`@chow_custom_url_${APP_NAME.toLowerCase()}`).then((val) => {
-      if (val) {
-        setTargetUrl(val);
-      } else {
-        setTargetUrl(defaultUrl);
-      }
-    }).catch(() => {
-      setTargetUrl(defaultUrl);
-    });
-  }, []);
-
-  const handleConnect = async () => {
+  const handleConnect = () => {
     if (!customIp.trim()) return;
     let url = customIp.trim();
     
@@ -52,39 +39,21 @@ export default function App() {
       }
     }
 
-    try {
-      await AsyncStorage.setItem(`@chow_custom_url_${APP_NAME.toLowerCase()}`, url);
-      setTargetUrl(url);
-      setErrorDesc(null);
-      setKey(prev => prev + 1);
-    } catch (e) {
-      console.warn(e);
-    }
+    setTargetUrl(url);
+    setErrorDesc(null);
+    setKey(prev => prev + 1);
   };
 
-  const handleResetDefault = async () => {
-    try {
-      await AsyncStorage.removeItem(`@chow_custom_url_${APP_NAME.toLowerCase()}`);
-      setTargetUrl(defaultUrl);
-      setErrorDesc(null);
-      setKey(prev => prev + 1);
-    } catch (e) {
-      console.warn(e);
-    }
+  const handleResetDefault = () => {
+    setTargetUrl(defaultUrl);
+    setErrorDesc(null);
+    setKey(prev => prev + 1);
   };
 
   const handleRetry = () => {
     setErrorDesc(null);
     setKey(prev => prev + 1);
   };
-
-  if (!targetUrl) {
-    return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#06C167" />
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.container}>
