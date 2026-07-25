@@ -216,25 +216,45 @@ export const getFeaturedRows = async () => {
           .map(key => ({ _id: key, ...restData[key] }))
           .filter(r => r && r.verified === true);
         
-        // Return default constructed featured rows using live database restaurants
+        // Featured Items: only show restaurants that have food/dishes added
+        const featuredRestaurants = dbRestaurants.filter(r => {
+          if (!r.dishes) return false;
+          const dishesList = Array.isArray(r.dishes) ? r.dishes : Object.values(r.dishes);
+          return dishesList.length > 0;
+        });
+
+        // Offers Near You: only show restaurants with discounted items OR newly added foods
+        const offersRestaurants = dbRestaurants.filter(r => {
+          if (!r.dishes) return false;
+          const dishesList = Array.isArray(r.dishes) ? r.dishes : Object.values(r.dishes);
+          return dishesList.some(d => {
+            if (!d) return false;
+            // Discounted items check (e.g. has oldPrice, discountPrice, promoPrice, or isDiscounted)
+            const hasDiscount = d.oldPrice || d.discountPrice || d.promoPrice || d.isDiscounted;
+            // Newly added food check (e.g. has a generated timestamp ID starting with 'dish_')
+            const isNew = d._id && d._id.startsWith('dish_');
+            return hasDiscount || isNew;
+          });
+        });
+
         return [
           {
             _id: 'feat1',
             name: 'Featured Items',
             description: 'Handpicked favorites in your city',
-            restaurants: dbRestaurants
+            restaurants: featuredRestaurants
           },
           {
             _id: 'feat2',
             name: 'Offers Near You',
-            description: 'Fastest delivery times straight to your door',
-            restaurants: dbRestaurants
+            description: 'Delicious deals and fresh new arrivals',
+            restaurants: offersRestaurants
           },
           {
             _id: 'feat3',
             name: 'Trending Restaurants',
             description: 'Top-rated spots this week',
-            restaurants: dbRestaurants.filter((_, idx) => idx % 2 === 0)
+            restaurants: featuredRestaurants.filter((_, idx) => idx % 2 === 0)
           }
         ];
       }
