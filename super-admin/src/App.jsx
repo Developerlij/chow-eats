@@ -18,7 +18,8 @@ import {
   Cpu,
   ChevronLeft,
   ChevronRight,
-  Key
+  Key,
+  Briefcase
 } from 'lucide-react';
 
 // Import Screens
@@ -37,6 +38,7 @@ import FinanceManager from './screens/FinanceManager';
 import AuditManager from './screens/AuditManager';
 import SuperAnalytics from './screens/SuperAnalytics';
 import OperatorManager from './screens/OperatorManager';
+import ERPConsole from './screens/ERPConsole';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Overview');
@@ -64,6 +66,7 @@ export default function App() {
 
   const navigationItems = [
     { name: 'Overview', icon: LayoutDashboard, component: Overview, label: 'Dashboard' },
+    { name: 'ERP', icon: Briefcase, component: ERPConsole, label: 'ERP Command Console' },
     { name: 'Analytics', icon: Cpu, component: SuperAnalytics, label: 'Executive Panel' },
     { name: 'Finance', icon: DollarSign, component: FinanceManager, label: 'Financials' },
     { name: 'Audit', icon: ShieldCheck, component: AuditManager, label: 'Audit Desk' },
