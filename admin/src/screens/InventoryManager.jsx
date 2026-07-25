@@ -12,7 +12,9 @@ import {
   Edit2,
   Save,
   Trash2,
-  Package
+  Package,
+  Phone,
+  MessageSquare
 } from 'lucide-react';
 
 export default function InventoryManager() {
@@ -59,6 +61,12 @@ export default function InventoryManager() {
     };
   }, []);
 
+  // Helper for grocery phone
+  const getGroceryPhone = (p) => {
+    const seed = p.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+    return `+23480${(seed % 9000000 + 1000000)}`;
+  };
+
   // Extract all dishes across all restaurants
   const allDishes = [];
   restaurants.forEach(rest => {
@@ -66,10 +74,14 @@ export default function InventoryManager() {
       ? (Array.isArray(rest.dishes) ? rest.dishes : Object.values(rest.dishes))
       : [];
     dishesList.forEach((dish, index) => {
+      // Deterministic phone number for restaurant
+      const phoneSeed = rest.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+      const restPhone = `+23481${(phoneSeed % 9000000 + 1000000)}`;
       allDishes.push({
         ...dish,
         restaurantId: rest.id,
         restaurantName: rest.name,
+        restaurantPhone: restPhone,
         index // original array index for updates
       });
     });
@@ -205,6 +217,7 @@ export default function InventoryManager() {
                   <th>Price</th>
                   <th>Availability</th>
                   <th>Stock Quantity</th>
+                  <th>Vendor Contacts</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -246,6 +259,34 @@ export default function InventoryManager() {
                           )}
                         </td>
                         <td>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <a 
+                              href={`tel:${dish.restaurantPhone}`} 
+                              title="Call Restaurant Vendor"
+                              style={{ 
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#222', border: '1px solid #444', color: '#06C167',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Phone size={14} />
+                            </a>
+                            <a 
+                              href={`https://wa.me/${dish.restaurantPhone.replace('+', '')}?text=Hello%20${encodeURIComponent(dish.restaurantName)},%20we%20noticed%20the%20dish%20%22${encodeURIComponent(dish.name)}%22%20is%20currently%20low%20on%20inventory%20stock%20(${stockVal}%20remaining).%20Please%20verify%20availability.`}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Message on WhatsApp"
+                              style={{ 
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#25D366', color: '#FFF',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <MessageSquare size={14} />
+                            </a>
+                          </div>
+                        </td>
+                        <td>
                           {isEditing ? (
                             <button 
                               className="action-btn-small action-btn-primary" 
@@ -271,7 +312,7 @@ export default function InventoryManager() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="7" style={{ textAlign: 'center', color: '#999', padding: '24px' }}>
+                    <td colSpan="8" style={{ textAlign: 'center', color: '#999', padding: '24px' }}>
                       No food dishes matching your query.
                     </td>
                   </tr>
@@ -291,6 +332,7 @@ export default function InventoryManager() {
                   <th>Price</th>
                   <th>Availability</th>
                   <th>Stock Quantity</th>
+                  <th>Vendor Contacts</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -300,6 +342,7 @@ export default function InventoryManager() {
                     const isAvailable = prod.available !== false;
                     const stockVal = prod.stock !== undefined ? prod.stock : 99;
                     const isEditing = editingId === prod.id;
+                    const groceryPhone = getGroceryPhone(prod);
                     return (
                       <tr key={prod.id}>
                         <td>
@@ -332,6 +375,34 @@ export default function InventoryManager() {
                           )}
                         </td>
                         <td>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <a 
+                              href={`tel:${groceryPhone}`} 
+                              title="Call Grocery Vendor"
+                              style={{ 
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#222', border: '1px solid #444', color: '#06C167',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Phone size={14} />
+                            </a>
+                            <a 
+                              href={`https://wa.me/${groceryPhone.replace('+', '')}?text=Hello%20Supermarket%20Vendor,%20we%20noticed%20the%20product%20%22${encodeURIComponent(prod.name)}%22%20is%20currently%20low%20on%20inventory%20stock%20(${stockVal}%20remaining).%20Please%20verify%20availability.`}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Message on WhatsApp"
+                              style={{ 
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#25D366', color: '#FFF',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <MessageSquare size={14} />
+                            </a>
+                          </div>
+                        </td>
+                        <td>
                           {isEditing ? (
                             <button 
                               className="action-btn-small action-btn-primary" 
@@ -357,7 +428,7 @@ export default function InventoryManager() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="7" style={{ textAlign: 'center', color: '#999', padding: '24px' }}>
+                    <td colSpan="8" style={{ textAlign: 'center', color: '#999', padding: '24px' }}>
                       No grocery items matching your query.
                     </td>
                   </tr>
