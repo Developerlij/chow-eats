@@ -9,7 +9,8 @@ import {
   Apple,
   Lock,
   LogIn,
-  UserPlus
+  UserPlus,
+  Bell
 } from 'lucide-react';
 
 // Import Screens
@@ -21,6 +22,8 @@ import GroceryManager from './screens/GroceryManager';
 export default function App() {
   const [activeTab, setActiveTab] = useState('Overview');
   const [pendingCount, setPendingCount] = useState(0);
+  const [alerts, setAlerts] = useState([]);
+  const [isAlertsDropdownOpen, setIsAlertsDropdownOpen] = useState(false);
   
   // Auth and Operator State
   const [allOperators, setAllOperators] = useState([]);
@@ -38,7 +41,7 @@ export default function App() {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupRole, setSignupRole] = useState('Live Orders Manager');
 
-  // 1. Fetch live orders pending count
+  // 1. Fetch live orders pending count and alerts
   useEffect(() => {
     const ordersRef = ref(database, 'orders');
     const unsubscribe = onValue(ordersRef, (snapshot) => {
@@ -55,7 +58,21 @@ export default function App() {
         setPendingCount(0);
       }
     });
-    return () => unsubscribe();
+
+    const alertsRef = ref(database, 'systemAlerts');
+    const unsubscribeAlerts = onValue(alertsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setAlerts(Object.values(data));
+      } else {
+        setAlerts([]);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeAlerts();
+    };
   }, []);
 
   // 2. Fetch active operator profile and all operators list from Firebase Realtime Database
@@ -421,6 +438,92 @@ export default function App() {
             >
               Log Out
             </button>
+
+            {/* Glowing Alerts Bell System */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setIsAlertsDropdownOpen(!isAlertsDropdownOpen)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: alerts.length > 0 ? '#D32F2F' : '#888',
+                  cursor: 'pointer',
+                  padding: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative',
+                  borderRadius: '50%',
+                  backgroundColor: alerts.length > 0 ? 'rgba(211, 47, 47, 0.1)' : 'transparent',
+                  boxShadow: alerts.length > 0 ? '0 0 10px rgba(211, 47, 47, 0.3)' : 'none'
+                }}
+                title="System Alerts"
+              >
+                <Bell size={18} />
+                {alerts.length > 0 && (
+                  <span style={{
+                    position: 'absolute',
+                    top: '0px',
+                    right: '0px',
+                    backgroundColor: '#D32F2F',
+                    color: '#FFF',
+                    fontSize: '9px',
+                    fontWeight: 'bold',
+                    borderRadius: '50%',
+                    width: '14px',
+                    height: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    {alerts.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Dropdown Card */}
+              {isAlertsDropdownOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '35px',
+                  right: '0px',
+                  width: '280px',
+                  backgroundColor: '#1E1E1E',
+                  border: '1px solid #333',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+                  zIndex: 999,
+                  padding: '12px',
+                  maxHeight: '300px',
+                  overflowY: 'auto'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333', paddingBottom: '8px', marginBottom: '8px' }}>
+                    <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#FFF' }}>⚠️ Low Stock Warnings ({alerts.length})</span>
+                    <button 
+                      onClick={() => setIsAlertsDropdownOpen(false)}
+                      style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '10px' }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {alerts.length > 0 ? (
+                      alerts.map((alert) => (
+                        <div key={alert.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#121212', borderLeft: '3px solid #D32F2F', padding: '6px', borderRadius: '4px' }}>
+                          <span style={{ color: '#FF9800', fontWeight: 'bold', fontSize: '11px' }}>{alert.title}</span>
+                          <p style={{ color: '#DDD', fontSize: '11px', margin: 0 }}>{alert.message}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ textAlign: 'center', color: '#888', padding: '12px 0', fontSize: '11.5px' }}>
+                        No active stock alerts.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="admin-badge">OPERATOR / STORE MANAGER</div>
           </div>
         </header>

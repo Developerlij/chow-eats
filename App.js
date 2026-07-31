@@ -24,6 +24,7 @@ import SavedAddressesScreen from './src/screens/SavedAddressesScreen';
 import WalletScreen from './src/screens/WalletScreen';
 import SubscriptionScreen from './src/screens/SubscriptionScreen';
 import CategoryScreen from './src/screens/CategoryScreen';
+import AiAgentScreen from './src/screens/AiAgentScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -156,6 +157,7 @@ function NavigationWrapper() {
             <Stack.Screen name="Wallet" component={WalletScreen} />
             <Stack.Screen name="Subscription" component={SubscriptionScreen} />
             <Stack.Screen name="Category" component={CategoryScreen} />
+            <Stack.Screen name="AiAgent" component={AiAgentScreen} />
           </>
         )}
       </Stack.Navigator>

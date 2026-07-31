@@ -118,11 +118,27 @@ export default function InventoryManager() {
 
   // Adjust food dish stock level
   const handleSaveDishStock = async (dish) => {
+    const stockNum = parseInt(editingStock) || 0;
     const targetPath = `restaurants/${dish.restaurantId}/dishes/${dish.index}`;
+    const alertId = `alert_${dish._id}`;
     try {
       await update(ref(database, targetPath), {
-        stock: parseInt(editingStock) || 0
+        stock: stockNum
       });
+      
+      // Trigger dynamic system warning alerts
+      if (stockNum < 10) {
+        await set(ref(database, `systemAlerts/${alertId}`), {
+          id: alertId,
+          title: "Low Stock Warning!",
+          message: `Dish "${dish.name}" at "${dish.restaurantName}" is critically low (${stockNum} units remaining).`,
+          timestamp: new Date().toLocaleString(),
+          severity: stockNum < 5 ? "Critical" : "Warning"
+        });
+      } else {
+        await set(ref(database, `systemAlerts/${alertId}`), null);
+      }
+
       setEditingId(null);
       alert(`Stock level for "${dish.name}" adjusted successfully!`);
     } catch (err) {
@@ -146,11 +162,27 @@ export default function InventoryManager() {
 
   // Adjust grocery product stock level
   const handleSaveGroceryStock = async (prod) => {
+    const stockNum = parseInt(editingStock) || 0;
     const targetPath = `groceryProducts/${prod.id}`;
+    const alertId = `alert_${prod.id}`;
     try {
       await update(ref(database, targetPath), {
-        stock: parseInt(editingStock) || 0
+        stock: stockNum
       });
+      
+      // Trigger dynamic system warning alerts
+      if (stockNum < 10) {
+        await set(ref(database, `systemAlerts/${alertId}`), {
+          id: alertId,
+          title: "Low Stock Warning!",
+          message: `Grocery product "${prod.name}" is critically low (${stockNum} units remaining).`,
+          timestamp: new Date().toLocaleString(),
+          severity: stockNum < 5 ? "Critical" : "Warning"
+        });
+      } else {
+        await set(ref(database, `systemAlerts/${alertId}`), null);
+      }
+
       setEditingId(null);
       alert(`Stock level for "${prod.name}" adjusted successfully!`);
     } catch (err) {

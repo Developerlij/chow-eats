@@ -18,7 +18,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Key,
-  Package
+  Package,
+  Bell
 } from 'lucide-react';
 
 // Import Screens
@@ -42,6 +43,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('Overview');
   const [pendingCount, setPendingCount] = useState(0);
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
+  const [alerts, setAlerts] = useState([]);
+  const [isAlertsDropdownOpen, setIsAlertsDropdownOpen] = useState(false);
 
   useEffect(() => {
     const ordersRef = ref(database, 'orders');
@@ -59,7 +62,22 @@ export default function App() {
         setPendingCount(0);
       }
     });
-    return () => unsubscribe();
+
+    // Real-time low stock warnings subscription
+    const alertsRef = ref(database, 'systemAlerts');
+    const unsubscribeAlerts = onValue(alertsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setAlerts(Object.values(data));
+      } else {
+        setAlerts([]);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeAlerts();
+    };
   }, []);
 
   const navigationItems = [
@@ -187,6 +205,101 @@ export default function App() {
           <h1 className="header-title">
             {navigationItems.find(item => item.name === activeTab)?.label || 'Overview'}
           </h1>
+
+          {/* Glowing Alerts Bell System */}
+          <div style={{ position: 'relative', marginRight: '15px', marginLeft: 'auto' }}>
+            <button
+              onClick={() => setIsAlertsDropdownOpen(!isAlertsDropdownOpen)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: alerts.length > 0 ? '#D32F2F' : '#888',
+                cursor: 'pointer',
+                padding: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                borderRadius: '50%',
+                backgroundColor: alerts.length > 0 ? 'rgba(211, 47, 47, 0.1)' : 'transparent',
+                boxShadow: alerts.length > 0 ? '0 0 10px rgba(211, 47, 47, 0.3)' : 'none'
+              }}
+              title="System Alerts"
+            >
+              <Bell size={20} />
+              {alerts.length > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: '0px',
+                  right: '0px',
+                  backgroundColor: '#D32F2F',
+                  color: '#FFF',
+                  fontSize: '9px',
+                  fontWeight: 'bold',
+                  borderRadius: '50%',
+                  width: '15px',
+                  height: '15px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  {alerts.length}
+                </span>
+              )}
+            </button>
+
+            {/* Dropdown Card */}
+            {isAlertsDropdownOpen && (
+              <div style={{
+                position: 'absolute',
+                top: '40px',
+                right: '0px',
+                width: '320px',
+                backgroundColor: '#1E1E1E',
+                border: '1px solid #333',
+                borderRadius: '8px',
+                boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+                zIndex: 999,
+                padding: '12px',
+                maxHeight: '380px',
+                overflowY: 'auto'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333', paddingBottom: '8px', marginBottom: '8px' }}>
+                  <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#FFF' }}>⚠️ Low Stock Warnings ({alerts.length})</span>
+                  <button 
+                    onClick={() => setIsAlertsDropdownOpen(false)}
+                    style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '11px' }}
+                  >
+                    Close
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {alerts.length > 0 ? (
+                    alerts.map((alert) => (
+                      <div key={alert.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#121212', borderLeft: '3px solid #D32F2F', padding: '8px', borderRadius: '4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: '#FF9800', fontWeight: 'bold', fontSize: '11.5px' }}>{alert.title}</span>
+                          <span style={{ color: '#666', fontSize: '9px' }}>{alert.timestamp?.split(', ')[1]}</span>
+                        </div>
+                        <p style={{ color: '#DDD', fontSize: '11px', margin: 0 }}>{alert.message}</p>
+                        <button
+                          onClick={() => { setActiveTab('Inventory'); setIsAlertsDropdownOpen(false); }}
+                          style={{ alignSelf: 'flex-end', background: 'transparent', border: 'none', color: '#06C167', fontSize: '10.5px', fontWeight: 'bold', cursor: 'pointer', padding: '2px 0 0 0' }}
+                        >
+                          Resolve in Inventory &rarr;
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ textAlign: 'center', color: '#888', padding: '16px 0', fontSize: '12px' }}>
+                      No inventory alerts. All items healthy!
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="admin-badge">SYSTEM ADMINISTRATOR</div>
         </header>
 

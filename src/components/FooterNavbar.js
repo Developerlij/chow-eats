@@ -32,6 +32,13 @@ export default function FooterNavbar({ activeTab }) {
       route: 'Groceries'
     },
     {
+      name: 'AiAgent',
+      iconOutline: 'chatbubbles-outline',
+      iconFilled: 'chatbubbles',
+      label: 'AI Match',
+      route: 'AiAgent'
+    },
+    {
       name: 'Checkout',
       iconOutline: 'cart-outline',
       iconFilled: 'cart',
