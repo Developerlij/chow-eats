@@ -405,7 +405,7 @@ export default function AiAgentScreen() {
                 )}
                 <View style={{ flex: 1, alignItems: isAgent ? 'flex-start' : 'flex-end' }}>
                   <View style={[styles.bubble, isAgent ? styles.bubbleAgent : styles.bubbleUser]}>
-                    <Text style={styles.bubbleText}>{msg.text}</Text>
+                    <Text style={isAgent ? styles.bubbleTextAgent : styles.bubbleTextUser}>{msg.text}</Text>
                   </View>
 
                   {/* Recommendations Cards Carousel */}
@@ -523,7 +523,7 @@ export default function AiAgentScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#F7F8FA',
   },
   headerContainer: {
     flexDirection: 'row',
@@ -532,8 +532,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#222',
-    backgroundColor: '#1E1E1E'
+    borderBottomColor: '#EEEEEE',
+    backgroundColor: '#FFFFFF'
   },
   aiAvatar: {
     width: 38,
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   headerTitle: {
-    color: '#FFF',
+    color: '#1A1A1A',
     fontWeight: 'bold',
     fontSize: 15,
   },
@@ -556,7 +556,7 @@ const styles = StyleSheet.create({
     marginRight: 4
   },
   headerSubtitle: {
-    color: '#aaa',
+    color: '#666666',
     fontSize: 11,
   },
   chatArea: {
@@ -577,9 +577,9 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: '#E0E0E0',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
@@ -592,36 +592,46 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   bubbleAgent: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: '#EAEAEA',
     borderTopLeftRadius: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1
   },
   bubbleUser: {
     backgroundColor: '#06C167',
     borderTopRightRadius: 3,
   },
-  bubbleText: {
-    color: '#FFF',
+  bubbleTextAgent: {
+    color: '#1A1A1A',
+    fontSize: 13.5,
+    lineHeight: 19,
+  },
+  bubbleTextUser: {
+    color: '#FFFFFF',
     fontSize: 13.5,
     lineHeight: 19,
   },
   pillsContainer: {
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: '#222',
-    backgroundColor: '#121212',
+    borderTopColor: '#EEEEEE',
+    backgroundColor: '#FFFFFF',
   },
   pill: {
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 20,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#F5F5F5',
     borderWidth: 1,
-    borderColor: '#333'
+    borderColor: '#EAEAEA'
   },
   pillText: {
-    color: '#ccc',
+    color: '#333333',
     fontSize: 12,
     fontWeight: '500'
   },
@@ -630,19 +640,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#222',
+    borderTopColor: '#EEEEEE',
     marginBottom: 72 // space for footer navigation bar
   },
   textInput: {
     flex: 1,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#121212',
+    backgroundColor: '#F5F5F5',
     borderWidth: 1,
-    borderColor: '#333',
-    color: '#FFF',
+    borderColor: '#EAEAEA',
+    color: '#1A1A1A',
     paddingHorizontal: 15,
     fontSize: 13.5,
     outlineStyle: 'none'
@@ -658,11 +668,16 @@ const styles = StyleSheet.create({
   },
   recommendCard: {
     width: 170,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: '#EAEAEA',
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2
   },
   cardImage: {
     width: '100%',
@@ -672,7 +687,7 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   cardName: {
-    color: '#FFF',
+    color: '#1A1A1A',
     fontWeight: 'bold',
     fontSize: 12,
   },
@@ -683,7 +698,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   cardDesc: {
-    color: '#999',
+    color: '#666666',
     fontSize: 10,
     marginTop: 4,
     lineHeight: 13,
@@ -695,7 +710,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   cardPrice: {
-    color: '#FFF',
+    color: '#1A1A1A',
     fontWeight: 'bold',
     fontSize: 12.5,
   },
@@ -727,17 +742,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#06C167',
   },
   btnSecondary: {
-    backgroundColor: '#2A2A2A',
+    backgroundColor: '#F5F5F5',
     borderWidth: 1,
-    borderColor: '#444'
+    borderColor: '#E0E0E0'
   },
   btnText: {
-    color: '#FFF',
+    color: '#FFFFFF',
     fontSize: 10.5,
     fontWeight: 'bold'
   },
   btnTextSec: {
-    color: '#ccc',
+    color: '#555555',
     fontSize: 10,
     fontWeight: 'bold'
   }
