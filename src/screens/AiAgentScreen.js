@@ -99,10 +99,45 @@ export default function AiAgentScreen() {
     sendMessage(promptText);
   };
 
-  // Match items based on query keywords
+  // Match items based on query keywords and semantic synonyms
   const findMatches = (query) => {
-    const keywords = query.toLowerCase().split(/\s+/).filter(word => word.length > 2);
-    if (keywords.length === 0) return [];
+    const rawKeywords = query.toLowerCase().split(/\s+/).filter(word => word.length > 2);
+    if (rawKeywords.length === 0) return [];
+
+    // Synonym mapping for semantic expansion
+    const synonymMap = {
+      'spicy': ['chili', 'suya', 'pepper', 'hot', 'yaji', 'spiced', 'nigerian', 'buka'],
+      'hot': ['chili', 'suya', 'pepper', 'spicy', 'yaji', 'smoky'],
+      'chili': ['spicy', 'pepper', 'hot', 'yaji'],
+      'pepper': ['spicy', 'chili', 'hot', 'yaji'],
+      'italian': ['pizza', 'pasta', 'cheese', 'mozzarella', 'pepperoni', 'bread', 'nonna'],
+      'pizza': ['margherita', 'pepperoni', 'supreme', 'italian', 'mozzarella', 'cheese', 'nonna'],
+      'cheese': ['mozzarella', 'pizza', 'cheeseburger', 'cheesy'],
+      'burger': ['cheeseburger', 'patty', 'beef', 'bacon', 'bbq', 'fries', 'onion'],
+      'fries': ['chips', 'potato', 'parmesan', 'truffle'],
+      'sushi': ['roll', 'nigiri', 'salmon', 'tuna', 'edamame', 'japanese', 'zen', 'tempura'],
+      'japanese': ['sushi', 'roll', 'nigiri', 'tempura', 'zen'],
+      'fish': ['sushi', 'tuna', 'salmon', 'seafood'],
+      'nigerian': ['jollof', 'rice', 'plantain', 'dodo', 'chicken', 'egusi', 'yam', 'suya', 'puff puff', 'buka'],
+      'african': ['jollof', 'rice', 'plantain', 'dodo', 'chicken', 'egusi', 'yam', 'suya', 'puff puff', 'buka'],
+      'swallow': ['egusi', 'yam', 'pounded'],
+      'suya': ['beef', 'skewers', 'yaji', 'spicy', 'nigerian'],
+      'healthy': ['salad', 'quinoa', 'bowl', 'avocado', 'kale', 'spinach', 'detox', 'juice', 'vegan', 'green'],
+      'vegan': ['salad', 'quinoa', 'bowl', 'avocado', 'kale', 'spinach', 'detox', 'juice', 'healthy', 'green'],
+      'salad': ['caesar', 'romaine', 'spinach', 'lettuce', 'avocado', 'green'],
+      'drink': ['beverage', 'juice', 'coffee', 'milk', 'water', 'sparkling', 'cold brew', 'elixir'],
+      'beverage': ['drink', 'juice', 'coffee', 'milk', 'water', 'sparkling', 'cold brew', 'elixir'],
+      'grocery': ['milk', 'egg', 'butter', 'banana', 'apple', 'avocado', 'bread', 'sourdough', 'croissant', 'water', 'chips', 'chocolate'],
+      'dairy': ['milk', 'egg', 'butter', 'eggs', 'cheese']
+    };
+
+    // Expand search keywords using synonym map
+    const keywords = [...rawKeywords];
+    rawKeywords.forEach(word => {
+      if (synonymMap[word]) {
+        keywords.push(...synonymMap[word]);
+      }
+    });
 
     const matches = [];
 
@@ -122,6 +157,8 @@ export default function AiAgentScreen() {
           if (nameLower.includes(keyword)) score += 5;
           if (descLower.includes(keyword)) score += 2;
           if (catLower.includes(keyword)) score += 3;
+          // Exact matches get extra boost
+          if (nameLower === keyword) score += 10;
         });
 
         if (score > 0) {
@@ -134,7 +171,8 @@ export default function AiAgentScreen() {
             image: dish.image,
             description: dish.description,
             vendorName: rest.name,
-            restaurant: rest
+            restaurant: rest,
+            category: rest.category
           });
         }
       });
@@ -151,6 +189,7 @@ export default function AiAgentScreen() {
         if (nameLower.includes(keyword)) score += 5;
         if (descLower.includes(keyword)) score += 2;
         if (catLower.includes(keyword)) score += 3;
+        if (nameLower === keyword) score += 10;
       });
 
       if (score > 0) {
@@ -163,7 +202,8 @@ export default function AiAgentScreen() {
           image: prod.image,
           description: prod.description,
           vendorName: 'Chow Groceries',
-          product: prod
+          product: prod,
+          category: 'Grocery'
         });
       }
     });
@@ -260,7 +300,7 @@ export default function AiAgentScreen() {
     }
   };
 
-  // Send Message Logic
+  // Send Message Logic with custom cuisine replies
   const sendMessage = (textToSend = null) => {
     const text = textToSend || inputMessage;
     if (!text.trim()) return;
@@ -283,7 +323,25 @@ export default function AiAgentScreen() {
       let replyText = '';
 
       if (matches.length > 0) {
-        replyText = `I found ${matches.length} delicious options matching "${text}"! Check them out below:`;
+        // Find dominant category matched
+        const topMatch = matches[0];
+        const category = topMatch.category?.toLowerCase() || '';
+
+        if (category === 'nigerian') {
+          replyText = `🌶️ Smoky, hot, and delicious! I found the perfect Nigerian Bukka feasts (smoky Jollof, Egusi, Suya) for you. Check them out:`;
+        } else if (category === 'pizza') {
+          replyText = `🍕 Mamma mia! I matched some delicious fresh pizzas from Nonna's Pizzeria for you. Check them out:`;
+        } else if (category === 'sushi') {
+          replyText = `🍣 Fresh rolls and platters heading your way! I matched these Japanese specialties from Sakura Zen:`;
+        } else if (category === 'burgers') {
+          replyText = `🍔 Craft burger alert! I matched these gourmet smashed beef patties and truffle fries for you:`;
+        } else if (category === 'healthy') {
+          replyText = `🥗 Fresh and nutritious! I matched these healthy quinoa power bowls and Caesar salads:`;
+        } else if (category === 'grocery') {
+          replyText = `🛒 Stocking up? I matched these items from Chow Groceries to replenish your kitchen:`;
+        } else {
+          replyText = `I found some delicious options matching "${text}" for you! Check them out below:`;
+        }
       } else {
         replyText = `Hmm, I couldn't find a direct match for "${text}" in our active menus.\n\nAre you in the mood for Pizza, Burgers, Sushi, Nigerian dishes, or fresh Groceries? Tell me what you'd like to eat!`;
       }
@@ -297,7 +355,7 @@ export default function AiAgentScreen() {
 
       setMessages(prev => [...prev, agentMsg]);
       setIsTyping(false);
-    }, 1200); // realistic delay for premium feedback
+    }, 1200);
   };
 
   return (
